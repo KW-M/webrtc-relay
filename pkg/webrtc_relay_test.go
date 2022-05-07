@@ -81,7 +81,13 @@ func TestMsgRelay(t *testing.T) {
 		case msg := <-relay1.FromDatachannelMessages:
 			print("relay1 received: " + msg)
 			// assert.Equal(t, msg, expectedMessages[msgIndex])
+			if msg != expectedMessages[msgIndex] {
+				t.Logf("Expected message '%s' but got '%s'", expectedMessages[msgIndex], msg)
+			}
 			msgIndex++
+			if msgIndex == len(expectedMessages) {
+				return
+			}
 		case <-time.After(time.Second * 10):
 			t.Error("Timeout waiting for message to be recived on relay")
 		}
