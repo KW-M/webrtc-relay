@@ -282,7 +282,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(robotPeer *peerjs.Pe
 
 			// send a metadata message down the named message pipe that a new peer has connected
 			if conn.Relay.config.AddMetadataToPipeMessages {
-				msg := conn.generateToIncomingChanMetadataMessage(clientPeerId, "Connected", "") + conn.Relay.config.MessageMetadataSeparator + "{}"
+				msg := conn.generateToIncomingChanMetadataMessage(clientPeerId, "Connected", "")
 				conn.RelayMessageFromDatachannel(msg)
 			}
 
@@ -309,7 +309,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(robotPeer *peerjs.Pe
 
 			// send a metadata message down the named message pipe that this peer connection has been closed
 			if conn.Relay.config.AddMetadataToPipeMessages {
-				msg := conn.generateToIncomingChanMetadataMessage(clientPeerId, "Closed", "") + conn.Relay.config.MessageMetadataSeparator + "{}"
+				msg := conn.generateToIncomingChanMetadataMessage(clientPeerId, "Closed", "")
 				conn.RelayMessageFromDatachannel(msg)
 			}
 		})
@@ -319,7 +319,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(robotPeer *peerjs.Pe
 
 			// send a metadata message down the named message pipe that this peer has disconnected
 			if conn.Relay.config.AddMetadataToPipeMessages {
-				msg := conn.generateToIncomingChanMetadataMessage(clientPeerId, "Disconnected", "") + conn.Relay.config.MessageMetadataSeparator + "{}"
+				msg := conn.generateToIncomingChanMetadataMessage(clientPeerId, "Disconnected", "")
 				conn.RelayMessageFromDatachannel(msg)
 			}
 		})
@@ -328,7 +328,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(robotPeer *peerjs.Pe
 			errMessage := message.(error).Error()
 			log.Error("CLIENT PEER DATACHANNEL ERROR EVENT: ", errMessage)
 			if conn.Relay.config.AddMetadataToPipeMessages {
-				msg := conn.generateToIncomingChanMetadataMessage(clientPeerId, "Error", errMessage) + conn.Relay.config.MessageMetadataSeparator + "{}"
+				msg := conn.generateToIncomingChanMetadataMessage(clientPeerId, "Error", errMessage)
 				conn.RelayMessageFromDatachannel(msg)
 			}
 		})
