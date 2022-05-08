@@ -9,4 +9,4 @@ require (
 	github.com/stretchr/testify v1.7.1
 )
 
-replace github.com/muka/peerjs-go => github.com/kw-m/peerjs-go v0.0.0-20220502024341-01477cfd5b2f
+replace github.com/muka/peerjs-go => github.com/kw-m/peerjs-go v0.0.0-20220508013245-2f8f422c1d51
