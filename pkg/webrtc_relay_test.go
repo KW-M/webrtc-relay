@@ -79,7 +79,7 @@ func TestMsgRelay(t *testing.T) {
 		msgIndex := 0
 		select {
 		case msg := <-relay1.FromDatachannelMessages:
-			print("relay1 received: " + msg)
+			println("relay1 received: " + msg)
 			// assert.Equal(t, msg, expectedMessages[msgIndex])
 			if msg != expectedMessages[msgIndex] {
 				t.Logf("Expected message '%s' but got '%s'", expectedMessages[msgIndex], msg)
@@ -109,9 +109,9 @@ func TestMsgRelay(t *testing.T) {
 		}
 	})
 
-	<-time.After(time.Second * 6)
+	<-time.After(time.Second * 14)
 	clientPeer.Destroy()
-	<-time.After(time.Second * 6)
+	<-time.After(time.Second * 14)
 	relay1.Stop()
 }
 
