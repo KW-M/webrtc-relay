@@ -42,7 +42,7 @@ func TestRelayStartup(t *testing.T) {
 	relay := CreateWebrtcRelay(&programConfig)
 	go relay.Start()
 
-	<-time.After(time.Second * 50)
+	<-time.After(time.Second * 5)
 	relay.Stop()
 }
 
@@ -50,8 +50,8 @@ func TestMsgRelay(t *testing.T) {
 
 	// create a new relay
 	localProgramConfigWithServer := createLocalTestConfig(true, false)
-	relay1 := CreateWebrtcRelay(&localProgramConfigWithServer)
-	go relay1.Start()
+	relay := CreateWebrtcRelay(&localProgramConfigWithServer)
+	go relay.Start()
 
 	// wait for the relay to start:
 	<-time.After(time.Second * 2)
@@ -77,19 +77,21 @@ func TestMsgRelay(t *testing.T) {
 	}
 	go func() {
 		msgIndex := 0
-		select {
-		case msg := <-relay1.FromDatachannelMessages:
-			println("relay1 received: " + msg)
-			// assert.Equal(t, msg, expectedMessages[msgIndex])
-			if msg != expectedMessages[msgIndex] {
-				t.Logf("Expected message '%s' but got '%s'", expectedMessages[msgIndex], msg)
+		for {
+			select {
+			case msg := <-relay.FromDatachannelMessages:
+				println("relay1 received: " + msg)
+				// assert.Equal(t, msg, expectedMessages[msgIndex])
+				if msg != expectedMessages[msgIndex] {
+					t.Logf("Expected message '%s' but got '%s'", expectedMessages[msgIndex], msg)
+				}
+				msgIndex++
+				if msgIndex == len(expectedMessages) {
+					return
+				}
+			case <-time.After(time.Second * 10):
+				t.Error("Timeout waiting for message to be recived on relay")
 			}
-			msgIndex++
-			if msgIndex == len(expectedMessages) {
-				return
-			}
-		case <-time.After(time.Second * 10):
-			t.Error("Timeout waiting for message to be recived on relay")
 		}
 	}()
 
@@ -97,7 +99,7 @@ func TestMsgRelay(t *testing.T) {
 		"from relay to client_msg1",
 		"from relay to client_msg2",
 	}
-	println("Connecting from client to relay", relay1.ConnCtrl.GetPeerId())
+	println("Peer ", relay1.ConnCtrl.GetPeerId(), " (Client) connecting to Relay")
 	dataConn, err := clientPeer.Connect(relay1.ConnCtrl.GetPeerId(), peer.NewConnectionOptions())
 	assert.NoError(t, err)
 	assert.NotNil(t, dataConn)

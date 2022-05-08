@@ -63,7 +63,7 @@ func (relay *WebrtcRelay) Start() {
 		}
 	}()
 
-	print("Creating named pipe relay folder...", config.NamedPipeFolder)
+	relay.Log.Debug("Creating named pipe relay folder: ", config.NamedPipeFolder)
 	os.MkdirAll(config.NamedPipeFolder, os.ModePerm)
 
 	if relay.config.CreateDatachannelNamedPipes {
