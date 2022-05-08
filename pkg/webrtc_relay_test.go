@@ -185,8 +185,10 @@ func TestHelloWorld(t *testing.T) {
 		conn2 := data.(*peer.DataConnection)
 		conn2.On("data", func(data interface{}) {
 			// Will print 'hi!'
-			log.Println("Received")
-			done = true
+			log.Println("Received:", string(data.([]byte)))
+			if string(data.([]byte)) == "hi!" {
+				done = true
+			}
 		})
 	})
 
