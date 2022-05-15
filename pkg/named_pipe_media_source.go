@@ -1,7 +1,6 @@
 package webrtc_relay_core
 
 import (
-	"errors"
 	"os"
 	"syscall"
 	"time"
@@ -81,8 +80,9 @@ func (pipe *NamedPipeMediaSource) StartMediaStream() error {
 			err = read_ogg(pipe)
 		} else {
 			err = read_raw_stream(pipe, pipe.readBufferSize, pipe.readInterval)
-			return errors.New("Unknow Media Source MimeType: " + mimeType + " sending raw stream as fallback")
+			log.Debug("Unknow Media Source MimeType: " + mimeType + " sending raw stream as fallback")
 		}
+
 		if err != nil {
 			pipe.log.Error("Error reading media source:", err)
 			continue

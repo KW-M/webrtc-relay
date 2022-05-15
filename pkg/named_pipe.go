@@ -8,9 +8,6 @@ import (
 	"syscall"
 	"time"
 
-	// "os"
-
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -35,7 +32,7 @@ func CreateNamedPipeRelay(pipeFilePath string, pipeFilePermissions uint32, pipeO
 		exitSignal:              NewUnblockSignal(),
 		MessagesFromPipeChannel: make(chan string, readChannelBufferCount),
 		readChannelBufferCount:  readChannelBufferCount,
-		log:                     log.WithFields(logrus.Fields{"pipe": pipeFilePath, "fileOpenMode": pipeOpenMode}),
+		log:                     log.WithFields(log.Fields{"pipe": pipeFilePath, "fileOpenMode": pipeOpenMode}),
 		lastErr:                 nil,
 	}
 

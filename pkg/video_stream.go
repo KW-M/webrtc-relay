@@ -41,7 +41,7 @@ func initVideoTrack() *webrtc.TrackLocalStaticSample {
 	var err error
 	cameraLivestreamVideoTrack, err = webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: "video/h264"}, "rov-front-cam", "rov-front-cam-stream")
 	if err != nil {
-		log.Fatal("could not create video track. ", err)
+		cameraLog.Fatal("could not create video track. ", err)
 	}
 
 	return cameraLivestreamVideoTrack

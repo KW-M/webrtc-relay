@@ -85,7 +85,7 @@ func read_ivf(pipe *NamedPipeMediaSource) error {
 		return errors.New("ivfReader Initilization Error" + ivfErr.Error())
 	}
 	print(ivfReader, ivfHeader)
-	return errors.New("IVF READER NOT IMPLEMENTED!")
+	return errors.New("IVF READER NOT IMPLEMENTED")
 }
 
 func read_ogg(pipe *NamedPipeMediaSource) error {
@@ -97,7 +97,7 @@ func read_ogg(pipe *NamedPipeMediaSource) error {
 		return errors.New("oggReader Initilization Error: " + oggErr.Error())
 	}
 	print(oggReader, oggHeader)
-	return errors.New("OGG READER NOT IMPLEMENTED!")
+	return errors.New("OGG READER NOT IMPLEMENTED")
 }
 
 func read_raw_stream(pipe *NamedPipeMediaSource, readBufferSize int, readInterval time.Duration) error {

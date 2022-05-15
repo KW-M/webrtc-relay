@@ -61,13 +61,14 @@ func GetDefaultPeerInitOptions() PeerInitOptions {
 func GetDefaultProgramConfig() ProgramConfig {
 	peerInitOpts := GetDefaultPeerInitOptions()
 	return ProgramConfig{
-		BasePeerId:                  "go-robot-",
-		PeerInitConfigs:             []*PeerInitOptions{&peerInitOpts},
-		NamedPipeFolder:             "/tmp/webtrc-relay-pipes/",
-		CreateDatachannelNamedPipes: true,
-		MessageDelimiter:            "\n",
-		MessageMetadataSeparator:    "|\"|", // intentionally an invalid json string
-		AddMetadataToPipeMessages:   true,
+		BasePeerId:                     "go-robot-",
+		initialRobotPeerIdEndingNumber: 0,
+		PeerInitConfigs:                []*PeerInitOptions{&peerInitOpts},
+		NamedPipeFolder:                "/tmp/webtrc-relay-pipes/",
+		CreateDatachannelNamedPipes:    true,
+		MessageDelimiter:               "\n",
+		MessageMetadataSeparator:       "|\"|", // intentionally an invalid json string
+		AddMetadataToPipeMessages:      true,
 	}
 }
 

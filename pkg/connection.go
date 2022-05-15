@@ -293,7 +293,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(robotPeer *peerjs.Pe
 			// handle incoming messages from this client peer
 			clientPeerDataConnection.On("data", func(msgBytes interface{}) {
 				var msgString string = string(msgBytes.([]byte))
-				log.Debug("clientDataConnection 👩🏻‍✈️ GOT MESSAGE: ", msgString)
+				log.Debug("clientDataConnection 🚘 GOT MESSAGE: ", msgString)
 				conn.handleIncomingDatachannelMessage(msgString, robotPeer, clientPeerId, clientPeerDataConnection, log)
 			})
 

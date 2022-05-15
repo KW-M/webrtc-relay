@@ -76,72 +76,59 @@ func TestMsgRelay(t *testing.T) {
 	defer relay.Stop()
 
 	// create a "client" peer:
-	// opts := getPeerjsGoTestOpts(localProgramConfigWithServer.PeerInitConfigs[0])
-	// clientPeer, err := peer.NewPeer("!Client_Peer!", opts)
-	// assert.NoError(t, err)
+	opts := getPeerjsGoTestOpts(localProgramConfigWithServer.PeerInitConfigs[0])
+	clientPeer, err := peer.NewPeer("!Client_Peer!", opts)
+	assert.NoError(t, err)
+	defer clientPeer.Destroy()
 
-	// go func() {
-	// 	select {
-	// 	case relay1.RelayInputMessageChannel <- "from relay to client":
-	// 	case <-time.After(time.Second * 5):
-	// 		t.Error("Timeout waiting for message to be sent from relay to client")
-	// 	}
-	// }()
+	clientPeer.On("open", func(id interface{}) {
+		clientId := id.(string)
+		println("Client Peer Open: ", clientId, " (Client) now connecting to ", relay.ConnCtrl.GetPeerId(), " (Relay)")
 
-	// expectedMessages := [...]string{
-	// 	"{\"SrcPeerId\":\"!Client_Peer!\",\"PeerEvent\":\"Connected\"}",
-	// 	"{\"SrcPeerId\":\"!Client_Peer!\"}|\"|from relay to client_msg1",
-	// 	"{\"SrcPeerId\":\"!Client_Peer!\"}|\"|from relay to client_msg2",
-	// 	"{\"SrcPeerId\":\"!Client_Peer!\",\"PeerEvent\":\"Disconnected\"}",
-	// }
-	go func() {
-		// msgIndex := 0
-		for {
-			select {
-			case msg := <-relay.RelayOutputMessageChannel:
-				println("relay1 received: " + msg)
-				// assert.Equal(t, msg, expectedMessages[msgIndex])
-				// if msg != expectedMessages[msgIndex] {
-				// 	t.Logf("Expected message '%s' but got '%s'", expectedMessages[msgIndex], msg)
-				// }
-				// msgIndex++
-				// if msgIndex == len(expectedMessages) {
-				// 	// return
-				// }
-			case <-time.After(time.Second * 15):
-				t.Error("Timeout waiting for message to be recived on relay")
-			}
+		sendingMessages := [...]string{
+			"from relay to client_msg1",
+			"from relay to client_msg2",
 		}
-	}()
 
-	// clientPeer.On("open", func(id interface{}) {
-	// 	clientId := id.(string)
-	// 	println("Client Peer Open: ", clientId, " (Client) now connecting to ", relay.ConnCtrl.GetPeerId(), " (Relay)")
+		dataConn, err := clientPeer.Connect(relay.ConnCtrl.GetPeerId(), peer.NewConnectionOptions())
+		assert.NoError(t, err)
+		assert.NotNil(t, dataConn)
+		dataConn.On("open", func(none interface{}) {
+			println("Client peer: connection to relay open!")
+			for _, msg := range sendingMessages {
+				println("Sending message from client to relay:", msg)
+				dataConn.Send([]byte(msg), false)
+			}
+		})
+	})
 
-	// 	sendingMessages := [...]string{
-	// 		"from relay to client_msg1",
-	// 		"from relay to client_msg2",
-	// 	}
+	clientPeer.On("error", func(err interface{}) {
+		t.Error("Client Peer Error: ", err.(error).Error())
+	})
 
-	// 	dataConn, err := clientPeer.Connect(relay.ConnCtrl.GetPeerId(), peer.NewConnectionOptions())
-	// 	assert.NoError(t, err)
-	// 	assert.NotNil(t, dataConn)
-	// 	dataConn.On("open", func(none interface{}) {
-	// 		println("Client peer: connection to relay open!")
-	// 		for _, msg := range sendingMessages {
-	// 			println("Sending message from client to relay:", msg)
-	// 			dataConn.Send([]byte(msg), false)
-	// 		}
-	// 	})
-	// })
-
-	// clientPeer.On("error", func(err interface{}) {
-	// 	t.Error("Client Peer Error: ", err.(error).Error())
-	// })
-
-	select {}
-	// clientPeer.Destroy()
-
+	expectedMessages := [...]string{
+		"{\"SrcPeerId\":\"!Client_Peer!\",\"PeerEvent\":\"Connected\"}",
+		"{\"SrcPeerId\":\"!Client_Peer!\"}|\"|from relay to client_msg1",
+		"{\"SrcPeerId\":\"!Client_Peer!\"}|\"|from relay to client_msg2",
+		"{\"SrcPeerId\":\"!Client_Peer!\",\"PeerEvent\":\"Disconnected\"}",
+	}
+	msgIndex := 0
+	for {
+		select {
+		case msg := <-relay.RelayOutputMessageChannel:
+			println("relay1 received: " + msg)
+			assert.Equal(t, msg, expectedMessages[msgIndex])
+			if msg != expectedMessages[msgIndex] {
+				t.Logf("Expected message '%s' but got '%s'", expectedMessages[msgIndex], msg)
+			}
+			msgIndex++
+			if msgIndex == len(expectedMessages) {
+				return
+			}
+		case <-time.After(time.Second * 15):
+			t.Error("Timeout waiting for message to be recived on relay")
+		}
+	}
 }
 
 func TestPeer(t *testing.T) {
