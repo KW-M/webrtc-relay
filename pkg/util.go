@@ -1,4 +1,4 @@
-package webrtc_relay_core
+package webrtc_relay
 
 /* contains
  * checks if a string is present in a slice (aka an array)

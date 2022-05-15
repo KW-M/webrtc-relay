@@ -1,4 +1,4 @@
-package webrtc-relay
+package webrtc_relay
 
 import (
 	"flag"

@@ -1,4 +1,4 @@
-package webrtc_relay_core
+package webrtc_relay
 
 import (
 	"encoding/json"

@@ -1,4 +1,4 @@
-package webrtc_relay_core
+package webrtc_relay
 
 import webrtc "github.com/pion/webrtc/v3"
 
