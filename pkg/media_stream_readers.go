@@ -1,6 +1,7 @@
 package webrtc_relay_core
 
 import (
+	"errors"
 	"time"
 
 	"github.com/pion/webrtc/v3/pkg/media"
@@ -12,8 +13,12 @@ import (
 ///https://github.com/edaniels/gostream/blob/master/codec/x264/encoder.go
 // https://github.com/pion/mediadevices/blob/08a396571f87ee2888fc855964a5442f2a163879/track.go#L314
 
-func read_h264(pipe *NamedPipeMediaSource) {
+func read_h264(pipe *NamedPipeMediaSource) error {
 
+	// NAIVE IMPLEMENTATION:
+	return read_raw_stream(pipe, 4096, h264FrameDuration)
+
+	// SMARTER IMPLEMENTATION (MAYBE):
 	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/src/main.go
 	// Send our video a frame at a time. Pace our sending so we send it at the same speed it should be played back as.
 	// This isn't required since the video is timestamped, but we will such much higher loss if we send all at once.
@@ -57,49 +62,15 @@ func read_h264(pipe *NamedPipeMediaSource) {
 	// 			spsAndPpsCache = []byte{}
 	// 		}
 
-	// 		if h264WriteErr := cameraLivestreamVideoTrack.WriteSample(media.Sample{Data: nal.Data, Duration: time.Second}); h264WriteErr != nil {
-	// 			log.Println("Error writing h264 video track sample: ", h264WriteErr)
+	// 		if err := pipe.WebrtcTrack.WriteSample(media.Sample{Data: nal.Data, Duration: time.Second}); err != nil {
+	// 			log.Println("Error writing h264 video track sample: ", err)
 	// 		}
 	// 	}
 	// }
 
-	// naive implementation
-
-	tmpReadBuf := make([]byte, 4096)
-	ticker := time.NewTicker(h264FrameDuration)
-	for {
-		select {
-		case <-pipe.exitReadLoopSignal.GetSignal():
-			return
-		case <-ticker.C:
-			numBytes, err := pipe.pipeFile.Read(tmpReadBuf) // read as much data as possible
-			if err != nil {
-				log.Error("video reader error: ", err)
-				pipe.exitReadLoopSignal.TriggerWithError(err)
-				return
-			}
-			if numBytes == 0 {
-				log.Println("All video frames parsed and sent")
-			}
-
-			// nal.Data = append([]byte{0x00, 0x00, 0x00, 0x01}, nal.Data...)
-
-			// if nal.UnitType == h264reader.NalUnitTypeSPS || nal.UnitType == h264reader.NalUnitTypePPS {
-			// 	spsAndPpsCache = append(spsAndPpsCache, nal.Data...)
-			// 	continue
-			// } else if nal.UnitType == h264reader.NalUnitTypeCodedSliceIdr {
-			// 	nal.Data = append(spsAndPpsCache, nal.Data...)
-			// 	spsAndPpsCache = []byte{}
-			// }
-
-			if h264WriteErr := cameraLivestreamVideoTrack.WriteSample(media.Sample{Data: tmpReadBuf, Duration: time.Second}); h264WriteErr != nil {
-				log.Println("Error writing h264 video track sample: ", h264WriteErr)
-			}
-		}
-	}
 }
 
-func read_ivf(pipe *NamedPipeMediaSource) {
+func read_ivf(pipe *NamedPipeMediaSource) error {
 
 	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/src/main.go
 	// Send our video a frame at a time. Pace our sending so we send it at the same speed it should be played back as.
@@ -111,24 +82,47 @@ func read_ivf(pipe *NamedPipeMediaSource) {
 
 	ivfReader, ivfHeader, ivfErr := ivfreader.NewWith(pipe.pipeFile)
 	if ivfErr != nil {
-		log.Error("ivfReader Initilization Error", ivfErr)
-		return
+		return errors.New("ivfReader Initilization Error" + ivfErr.Error())
 	}
-	log.Warn("IVF READER NOT IMPLEMENTED!")
 	print(ivfReader, ivfHeader)
+	return errors.New("IVF READER NOT IMPLEMENTED!")
 }
 
-func read_ogg(pipe *NamedPipeMediaSource) {
+func read_ogg(pipe *NamedPipeMediaSource) error {
 
 	// only works with opus codec in the ogg container
 	// https://github.com/pion/webrtc/issues/2181
 	oggReader, oggHeader, oggErr := oggreader.NewWith(pipe.pipeFile)
 	if oggErr != nil {
-		log.Error("oggReader Initilization Error", oggErr)
-		return
+		return errors.New("oggReader Initilization Error: " + oggErr.Error())
 	}
-	log.Warn("OGG READER NOT IMPLEMENTED!")
 	print(oggReader, oggHeader)
+	return errors.New("OGG READER NOT IMPLEMENTED!")
+}
+
+func read_raw_stream(pipe *NamedPipeMediaSource, readBufferSize int, readInterval time.Duration) error {
+	// just keeps reading the named pipe bytes at a set intervals and pushing them onto the webrtc track
+	tmpReadBuf := make([]byte, readBufferSize)
+	ticker := time.NewTicker(readInterval)
+	for {
+		select {
+		case <-pipe.exitSignal.GetSignal():
+			return nil
+		case <-ticker.C:
+			numBytes, err := pipe.pipeFile.Read(tmpReadBuf) // read as much data as possible
+			if err != nil {
+				return errors.New("Error reading from media pipe source: " + err.Error())
+			}
+			if numBytes == 0 {
+				log.Println("All video frames parsed and sent")
+				return nil
+			}
+
+			if err := pipe.WebrtcTrack.WriteSample(media.Sample{Data: tmpReadBuf, Duration: readInterval}); err != nil {
+				return errors.New("Error writing webrtc track sample: " + err.Error())
+			}
+		}
+	}
 }
 
 // // https://developer.mozilla.org/en-US/docs/Web/Media/Formats/Video_codecs#avc_h.264

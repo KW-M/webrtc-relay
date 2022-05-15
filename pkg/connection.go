@@ -38,11 +38,11 @@ func CreateWebrtcConnectionCtrl(relay *WebrtcRelay) *WebrtcConnectionCtrl {
 	}
 }
 
-func (conn *WebrtcConnectionCtrl) RelayMessageFromDatachannel(message string) {
+func (conn *WebrtcConnectionCtrl) RelayMessageToOutputChan(message string) {
 	select {
-	case conn.Relay.FromDatachannelMessages <- message:
+	case conn.Relay.RelayOutputMessageChannel <- message:
 	default:
-		conn.log.Error("RelayMessageFromDatachannel: Go channel is full! Msg:", message)
+		conn.log.Error("RelayMessageToOutputChan: Go channel is full! Msg:", message)
 	}
 }
 
@@ -69,22 +69,23 @@ func (conn *WebrtcConnectionCtrl) handleIncomingDatachannelMessage(message strin
 		var metadata string = conn.generateToIncomingChanMetadataMessage(clientPeerId, "", "")
 		message = metadata + conn.Relay.config.MessageMetadataSeparator + message
 	}
+	// conn.log.Printf("Got Relay Input Message: %s", relayInputMessage)
 	// send a message down the named message pipe with the message from the client peer
-	conn.RelayMessageFromDatachannel(message)
+	conn.RelayMessageToOutputChan(message)
 }
 
 /* handle forwarding messages from the named pipe to the client/browser (via the datachannel) */
 func (conn *WebrtcConnectionCtrl) handleOutgoingDatachannelMessages() {
 	for {
 		select {
-		case msgFromNamedPipe := <-conn.Relay.SendToDatachannelMessages:
-			conn.log.Printf("msgFromNamedPipe GOT MESSAGE: %s", msgFromNamedPipe)
+		case relayInputMessage := <-conn.Relay.RelayInputMessageChannel:
+			conn.log.Printf("Got Relay Input Message: %s", relayInputMessage)
 			var TargetPeerIds = make(map[string]bool)
 
 			if conn.Relay.config.AddMetadataToPipeMessages {
-				metadataAndMessage := strings.Split(msgFromNamedPipe, conn.Relay.config.MessageMetadataSeparator)
+				metadataAndMessage := strings.Split(relayInputMessage, conn.Relay.config.MessageMetadataSeparator)
 				if len(metadataAndMessage) == 2 {
-					msgFromNamedPipe = metadataAndMessage[1]
+					relayInputMessage = metadataAndMessage[1]
 					var metadataJson = metadataAndMessage[0]
 					var metadata = new(RelayPipeToDatachannelMetadata)
 					err := json.Unmarshal([]byte(metadataJson), &metadata)
@@ -97,13 +98,13 @@ func (conn *WebrtcConnectionCtrl) handleOutgoingDatachannelMessages() {
 						}
 
 						if metadata.Action == "Media_Call_Peer" {
-							conn.log.Printf("msgFromNamedPipe GOT MESSAGE: %s", msgFromNamedPipe)
+							conn.log.Printf("msgFromNamedPipe GOT MESSAGE: %s", relayInputMessage)
 
 							streamName := metadata.Params[0]
 							mimeType := metadata.Params[1]
 							pipeName := metadata.Params[2]
 
-							mediaSrc, err := CreateNamedPipeMediaSource(conn.Relay.config.NamedPipeFolder+pipeName, 10000, mimeType, streamName)
+							mediaSrc, err := CreateNamedPipeMediaSource(conn.Relay.config.NamedPipeFolder+pipeName, 10000, h264FrameDuration, mimeType, streamName)
 							if err != nil {
 								conn.log.Error("Error creating named pipe media source: ", err)
 								break
@@ -111,7 +112,7 @@ func (conn *WebrtcConnectionCtrl) handleOutgoingDatachannelMessages() {
 							if conn.CurrentRobotPeer == nil {
 								conn.log.Error("Error video calling: CurrentRobotPeer is nil")
 							}
-							mediaSrc.StartMediaStream(conn.Relay.stopRelaySignal)
+							mediaSrc.StartMediaStream()
 							for _, peerId := range metadata.TargetPeerIds {
 								_, err = conn.CurrentRobotPeer.Call(peerId, mediaSrc.WebrtcTrack, peerjs.NewConnectionOptions())
 								if err != nil {
@@ -137,8 +138,8 @@ func (conn *WebrtcConnectionCtrl) handleOutgoingDatachannelMessages() {
 					conn.log.WithFields(log.Fields{
 						"peerId": peerId,
 						"host":   host,
-					}).Println("Sending message to peer:", msgFromNamedPipe)
-					dataChannel.Send([]byte(msgFromNamedPipe), false)
+					}).Println("Sending message to peer:", relayInputMessage)
+					dataChannel.Send([]byte(relayInputMessage), false)
 				}
 			}
 		// case <-time.After(time.Second * 5):
@@ -164,7 +165,7 @@ func (conn *WebrtcConnectionCtrl) handleOutgoingDatachannelMessages() {
  * Given the parameter number of "tries" to sucessfully connect to a peerjs server, this function will return a new set of peerServerOptions, that can be used to try to establish a peer server connection
  * This function will return the next set of peerServerOptions immediately.
  */
-func (conn *WebrtcConnectionCtrl) getNextPeerServerOptions(tries int) (*peerjs.Options, *peerjsServer.Options) {
+func (conn *WebrtcConnectionCtrl) getNextPeerServerOptions(tries int) (*peerjs.Options, *peerjsServer.Options, bool) {
 	var peerOptionsConfig = conn.Relay.config.PeerInitConfigs[tries%len(conn.Relay.config.PeerInitConfigs)]
 
 	log.Print("using peerjs Host: ", peerOptionsConfig.Host)
@@ -191,10 +192,10 @@ func (conn *WebrtcConnectionCtrl) getNextPeerServerOptions(tries int) (*peerjs.O
 		peerServerOptions.AllowDiscovery = peerOptionsConfig.AllowDiscovery
 		peerServerOptions.ConcurrentLimit = peerOptionsConfig.ConcurrentLimit
 		peerServerOptions.CleanupOutMsgs = peerOptionsConfig.CleanupOutMsgs
-		return &peerOptions, &peerServerOptions
+		return &peerOptions, &peerServerOptions, true
 	}
 
-	return &peerOptions, &peerjsServer.Options{} // returns nil for peerServerOptions
+	return &peerOptions, &peerjsServer.Options{}, false // returns nil equivalent for peerServerOptions
 }
 
 /* startLocalPeerJsServer (blocking goroutine)
@@ -224,7 +225,7 @@ func (conn *WebrtcConnectionCtrl) StartLocalPeerJsServer(serverOptions peerjsSer
  */
 func (conn *WebrtcConnectionCtrl) StartPeerServerConnectionLoop() {
 	peerServerConnectionTries := 0
-	peerOptions, peerServerOptions := conn.getNextPeerServerOptions(peerServerConnectionTries)
+	peerOptions, peerServerOptions, startLocalServer := conn.getNextPeerServerOptions(peerServerConnectionTries)
 
 	go func() {
 		for {
@@ -233,21 +234,24 @@ func (conn *WebrtcConnectionCtrl) StartPeerServerConnectionLoop() {
 				log.Println("Closing down webrtc connection loop.")
 				return
 			default:
-				if peerServerOptions != nil {
+				if startLocalServer {
+					log.Debug("Starting local peerjs server... ServerConfig: ", peerServerOptions)
 					go conn.StartLocalPeerJsServer(*peerServerOptions)
 				}
+				<-time.After(time.Second * 1)
 				conn.ActiveDataConnectionsToThisRobot = make(map[string]*peerjs.DataConnection)
+				log.Debug("Connecting to peerjs server... PeerConfig: ", peerOptions)
 				err := conn.setupRobotPeer(peerOptions, conn.Relay.stopRelaySignal)
-				if e, ok := err.(*peerjs.PeerError); ok {
+				if e, ok := err.(peerjs.PeerError); ok {
 					errorType := e.Type
 					if errorType == "unavailable-id" {
 						log.Printf("Peer id is unavailable. Switching to next peer id end number...\n")
 						conn.RobotPeerIdEndingNum++ // increment the peer id ending integer
 					}
 					if errorType == "network" {
-						log.Printf("Peer Js server is unavailable, switching to next peer server\n")
+						log.Printf("Peerjs server is unavailable, switching to next peer server\n")
 						peerServerConnectionTries++ // increment the peer id ending integer
-						peerOptions, peerServerOptions = conn.getNextPeerServerOptions(peerServerConnectionTries)
+						peerOptions, peerServerOptions, startLocalServer = conn.getNextPeerServerOptions(peerServerConnectionTries)
 					}
 				}
 			}
@@ -283,7 +287,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(robotPeer *peerjs.Pe
 			// send a metadata message down the named message pipe that a new peer has connected
 			if conn.Relay.config.AddMetadataToPipeMessages {
 				msg := conn.generateToIncomingChanMetadataMessage(clientPeerId, "Connected", "")
-				conn.RelayMessageFromDatachannel(msg)
+				conn.RelayMessageToOutputChan(msg)
 			}
 
 			// handle incoming messages from this client peer
@@ -293,13 +297,13 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(robotPeer *peerjs.Pe
 				conn.handleIncomingDatachannelMessage(msgString, robotPeer, clientPeerId, clientPeerDataConnection, log)
 			})
 
-			log.Info("VIDEO CALLING client peer: ", clientPeerId)
-			_, err := robotPeer.Call(clientPeerId, cameraLivestreamVideoTrack, peerjs.NewConnectionOptions())
-			if err != nil {
-				log.Error("Error video calling client peer: ", clientPeerId)
-				clientPeerDataConnection.Close()
-				return
-			}
+			// log.Info("VIDEO CALLING client peer: ", clientPeerId)
+			// _, err := robotPeer.Call(clientPeerId, cameraLivestreamVideoTrack, peerjs.NewConnectionOptions())
+			// if err != nil {
+			// 	log.Error("Error video calling client peer: ", clientPeerId)
+			// 	clientPeerDataConnection.Close()
+			// 	return
+			// }
 
 		})
 
@@ -310,7 +314,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(robotPeer *peerjs.Pe
 			// send a metadata message down the named message pipe that this peer connection has been closed
 			if conn.Relay.config.AddMetadataToPipeMessages {
 				msg := conn.generateToIncomingChanMetadataMessage(clientPeerId, "Closed", "")
-				conn.RelayMessageFromDatachannel(msg)
+				conn.RelayMessageToOutputChan(msg)
 			}
 		})
 
@@ -320,7 +324,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(robotPeer *peerjs.Pe
 			// send a metadata message down the named message pipe that this peer has disconnected
 			if conn.Relay.config.AddMetadataToPipeMessages {
 				msg := conn.generateToIncomingChanMetadataMessage(clientPeerId, "Disconnected", "")
-				conn.RelayMessageFromDatachannel(msg)
+				conn.RelayMessageToOutputChan(msg)
 			}
 		})
 
@@ -329,7 +333,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(robotPeer *peerjs.Pe
 			log.Error("CLIENT PEER DATACHANNEL ERROR EVENT: ", errMessage)
 			if conn.Relay.config.AddMetadataToPipeMessages {
 				msg := conn.generateToIncomingChanMetadataMessage(clientPeerId, "Error", errMessage)
-				conn.RelayMessageFromDatachannel(msg)
+				conn.RelayMessageToOutputChan(msg)
 			}
 		})
 
@@ -394,11 +398,11 @@ func (conn *WebrtcConnectionCtrl) setupRobotPeer(peerOptions *peerjs.Options, st
 	})
 
 	robotPeer.On("error", func(err interface{}) {
-		errorMessage := err.(*peerjs.PeerError).Error()
-		errorType := err.(*peerjs.PeerError).Type
+		errorMessage := err.(peerjs.PeerError).Error()
+		errorType := err.(peerjs.PeerError).Type
 		robotConnLog.Error("ROBOT PEER ERROR EVENT:", errorType, errorMessage)
 		if contains(FATAL_PEER_ERROR_TYPES, errorType) {
-			exitFuncSignal.TriggerWithError(err.(*peerjs.PeerError)) // signal to this goroutine to exit and let the setupConnections loop take over
+			exitFuncSignal.TriggerWithError(err.(peerjs.PeerError)) // signal to this goroutine to exit and let the setupConnections loop take over
 		}
 	})
 

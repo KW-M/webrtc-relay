@@ -2,41 +2,48 @@ package webrtc_relay_core
 
 import (
 	"bufio"
+	"errors"
+	"io/fs"
 	"os"
 	"syscall"
 	"time"
 
 	// "os"
 
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
 
 type NamedPipeRelay struct {
-	pipeFile            *os.File
-	pipeFilePath        string
-	exitRWLoopsSignal   *UnblockSignal
-	SendMessagesToPipe  chan string
-	GetMessagesFromPipe chan string
-	readBufferSize      int
-	log                 *log.Entry
+	pipeFile                *os.File
+	pipeFilePath            string
+	pipeFilePermissions     uint32
+	pipeFileOpenMode        int
+	MessagesFromPipeChannel chan string
+	readChannelBufferCount  int
+	lastErr                 error
+	exitSignal              *UnblockSignal
+	log                     *log.Entry
 }
 
-func CreateNamedPipeRelay(pipeFilePath string, readBufferSize int) (*NamedPipeRelay, error) {
+func CreateNamedPipeRelay(pipeFilePath string, pipeFilePermissions uint32, pipeOpenMode int, readChannelBufferCount int) (*NamedPipeRelay, error) {
 	var pipe = NamedPipeRelay{
-		pipeFile:            nil,
-		pipeFilePath:        pipeFilePath,
-		exitRWLoopsSignal:   NewUnblockSignal(),
-		SendMessagesToPipe:  make(chan string),
-		GetMessagesFromPipe: make(chan string),
-		readBufferSize:      readBufferSize,
-		log:                 log.WithField("pipe", pipeFilePath),
+		pipeFile:                nil,
+		pipeFilePath:            pipeFilePath,
+		pipeFilePermissions:     pipeFilePermissions,
+		pipeFileOpenMode:        pipeOpenMode,
+		exitSignal:              NewUnblockSignal(),
+		MessagesFromPipeChannel: make(chan string, readChannelBufferCount),
+		readChannelBufferCount:  readChannelBufferCount,
+		log:                     log.WithFields(logrus.Fields{"pipe": pipeFilePath, "fileOpenMode": pipeOpenMode}),
+		lastErr:                 nil,
 	}
 
 	// attempt to create the named pipe file if doesn't already exist:
 	if _, err := os.Stat(pipeFilePath); err != nil {
-		err := syscall.Mkfifo(pipeFilePath, 0666)
+		err := syscall.Mkfifo(pipeFilePath, pipeFilePermissions)
 		if err != nil {
-			pipe.log.Error("Make named pipe file error:", err)
+			pipe.log.Error("Create named pipe file error:", err)
 			return nil, err
 		}
 	}
@@ -44,127 +51,133 @@ func CreateNamedPipeRelay(pipeFilePath string, readBufferSize int) (*NamedPipeRe
 	return &pipe, nil
 }
 
+func (pipe *NamedPipeRelay) GetLastError() error {
+	err := pipe.lastErr
+	pipe.lastErr = nil
+	return err
+}
+
 func (pipe *NamedPipeRelay) Close() {
-	pipe.log.Print("Closing pipe file")
 	if pipe.pipeFile != nil {
 		pipe.pipeFile.Close()
+		pipe.pipeFile = nil
 	}
+	pipe.exitSignal.Trigger()
 }
 
-func (pipe *NamedPipeRelay) readMessagesLoop() {
-	defer pipe.log.Print("Exiting read loop...")
-	scanner := bufio.NewScanner(pipe.pipeFile)
-	for scanner.Scan() {
-		if pipe.exitRWLoopsSignal.HasTriggered {
-			return
-		} else if err := scanner.Err(); err != nil {
-			pipe.log.Printf("Error reading message from pipe: %v", err)
-			pipe.exitRWLoopsSignal.TriggerWithError(err)
-			return
+func (pipe *NamedPipeRelay) SendBytesToPipe(bytes []byte) {
+	if pipe.pipeFile != nil {
+		_, err := pipe.pipeFile.Write(bytes)
+		if err != nil {
+			pipe.lastErr = err
+			pipe.log.Error("Error writing bytes to pipe:", err)
 		}
-		pipe.GetMessagesFromPipe <- scanner.Text()
+	} else {
+		pipe.log.Error("SendBytesToPipe() called when pipe file was not open or not writable")
+		pipe.lastErr = errors.New("ErrPipeNotReady")
 	}
 }
 
-func (pipe *NamedPipeRelay) writeMessagesLoop() {
-	// writer := bufio.NewWriter(pipe.pipeFile)
-	pipe.log.Print("Entering write loop...")
-	defer pipe.log.Print("Exiting write loop...")
-	for {
-		select {
-		case <-pipe.exitRWLoopsSignal.GetSignal():
-			return
-		case message := <-pipe.SendMessagesToPipe:
-			log.Print("Writing message to pipe: ", message)
-			// _, err := writer.WriteString(message + "\n")
-			num, err := pipe.pipeFile.WriteString(message + "\n")
-			log.Print("Num: ", num)
-			if err != nil {
-				pipe.log.Printf("Error writing message to pipe: %v", err)
-				pipe.exitRWLoopsSignal.TriggerWithError(err)
-				return
-			}
+func (pipe *NamedPipeRelay) SendMessageToPipe(msg string) {
+	if pipe.pipeFile != nil {
+		_, err := pipe.pipeFile.WriteString(msg + "\n")
+		if err != nil {
+			pipe.lastErr = err
+			pipe.log.Error("Error writing message to pipe:", err)
 		}
+	} else {
+		pipe.log.Error("SendMessageToPipe() called when pipe file was not open or not writable")
+		pipe.lastErr = errors.New("ErrPipeNotReady")
 	}
 }
 
-func (pipe *NamedPipeRelay) RunPipeLoops(exitSignal *UnblockSignal, readable bool, writeable bool) error {
+func (pipe *NamedPipeRelay) RunPipeLoops() error {
 	defer pipe.Close()
+openloop:
 	for {
-		pipeFile, err := os.OpenFile(pipe.pipeFilePath, os.O_RDWR, os.ModeNamedPipe|0666)
+		// if pipe.pipeFileOpenMode&os.O_RDWR == 0 {
+		// 	pipe.log.Error("Adding O_NONBLOCK")
+		// 	pipe.pipeFileOpenMode |= syscall.O_NONBLOCK
+		// }
+
+		var err error
+		pipe.pipeFile, err = os.OpenFile(pipe.pipeFilePath, pipe.pipeFileOpenMode, os.ModeNamedPipe|fs.FileMode(pipe.pipeFilePermissions))
 		if err != nil {
 			pipe.log.Error("Error opening named pipe:", err)
 			<-time.After(time.Second)
 			continue
 		}
-		pipe.pipeFile = pipeFile
 		log.Print("Pipe file open: ", pipe.pipeFilePath)
 
-		if readable {
-			go pipe.readMessagesLoop()
-		}
-		if writeable {
-			go pipe.writeMessagesLoop()
+		if pipe.pipeFileOpenMode == os.O_RDONLY || pipe.pipeFileOpenMode == os.O_RDWR {
+			// read messages from pipe loop
+			scanner := bufio.NewScanner(pipe.pipeFile)
+			for scanner.Scan() {
+				if pipe.exitSignal.HasTriggered {
+					return nil
+				} else if err := scanner.Err(); err != nil {
+					pipe.log.Printf("Error reading message from pipe: %v", err)
+					pipe.lastErr = err
+					continue openloop
+				}
+				msg := scanner.Text()
+				println(msg)
+				pipe.MessagesFromPipeChannel <- msg
+			}
 		}
 
-		select {
-		case <-pipe.exitRWLoopsSignal.GetSignal():
-			<-time.After(time.Second)
-			continue
-		case <-exitSignal.GetSignal():
-			pipe.log.Print("Exiting pipe loops...")
-			pipe.exitRWLoopsSignal.Trigger()
-			return nil
-		}
+		pipe.exitSignal.Wait()
+		return nil
 	}
 }
 
 type DuplexNamedPipeRelay struct {
-	incomingPipe        *NamedPipeRelay
-	outgoingPipe        *NamedPipeRelay
-	SendMessagesToPipe  chan string
-	GetMessagesFromPipe chan string
-	readBufferSize      int
-	log                 *log.Entry
+	incomingPipe            *NamedPipeRelay
+	outgoingPipe            *NamedPipeRelay
+	SendMessagesToPipe      chan string
+	MessagesFromPipeChannel chan string
+	log                     *log.Entry
+	exitSignal              *UnblockSignal
 }
 
-func CreateDuplexNamedPipeRelay(incomingPipeFilePath string, outgoingPipeFilePath string, readBufferSize int) (*DuplexNamedPipeRelay, error) {
+func CreateDuplexNamedPipeRelay(incomingPipeFilePath string, outgoingPipeFilePath string, pipeFilePermissions uint32, readChannelBufferCount int) (*DuplexNamedPipeRelay, error) {
 	var duplexPipe = DuplexNamedPipeRelay{
-		readBufferSize: readBufferSize,
-		log:            log.WithField("duplex_pipe_pair", true),
+		exitSignal: NewUnblockSignal(),
+		log:        log.WithField("duplex_pipe_pair", true),
 	}
 
 	var err error
-
-	duplexPipe.incomingPipe, err = CreateNamedPipeRelay(incomingPipeFilePath, readBufferSize)
+	duplexPipe.incomingPipe, err = CreateNamedPipeRelay(incomingPipeFilePath, pipeFilePermissions, os.O_RDONLY, readChannelBufferCount)
 	if err != nil {
 		duplexPipe.log.Error("Error creating incoming pipe:", err)
 		return nil, err
 	}
 
-	duplexPipe.outgoingPipe, err = CreateNamedPipeRelay(outgoingPipeFilePath, readBufferSize)
+	duplexPipe.outgoingPipe, err = CreateNamedPipeRelay(outgoingPipeFilePath, pipeFilePermissions, os.O_WRONLY, readChannelBufferCount)
 	if err != nil {
 		duplexPipe.log.Error("Error creating outgoing pipe:", err)
 		return nil, err
 	}
 
-	// setup duplex channel
-	duplexPipe.SendMessagesToPipe = duplexPipe.outgoingPipe.SendMessagesToPipe
-	duplexPipe.GetMessagesFromPipe = duplexPipe.incomingPipe.GetMessagesFromPipe
-
-	// duplexPipe.SendMessagesToPipe <- "Hello1"
+	// setup duplex channel forwarding
+	duplexPipe.MessagesFromPipeChannel = duplexPipe.incomingPipe.MessagesFromPipeChannel
 
 	return &duplexPipe, nil
 }
 
 func (pipe *DuplexNamedPipeRelay) Close() {
+	pipe.exitSignal.Trigger()
 	pipe.incomingPipe.Close()
 	pipe.outgoingPipe.Close()
 }
 
-func (pipe *DuplexNamedPipeRelay) RunPipeLoops(exitSignal *UnblockSignal) {
+func (pipe *DuplexNamedPipeRelay) SendMessageToPipe(msg string) {
+	pipe.outgoingPipe.SendMessageToPipe(msg)
+}
+
+func (pipe *DuplexNamedPipeRelay) RunPipeLoops() {
 	defer pipe.Close()
-	go pipe.incomingPipe.RunPipeLoops(exitSignal, true, false)
-	go pipe.outgoingPipe.RunPipeLoops(exitSignal, false, true)
-	exitSignal.Wait()
+	go pipe.incomingPipe.RunPipeLoops()
+	go pipe.outgoingPipe.RunPipeLoops()
+	pipe.exitSignal.Wait()
 }
