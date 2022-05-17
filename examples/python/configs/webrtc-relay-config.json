@@ -1,0 +1,19 @@
+{
+    "LogLevel": "debug",
+    "BasePeerId": "go-relay-",
+    "NamedPipeFolder": "./webrtc-relay-pipes/",
+    "MessageMetadataSeparator": "|\"|",
+    "AddMetadataToMessages": true,
+    "CreateDatachannelNamedPipes": true,
+    "PeerInitConfigs": [
+        {
+            "StartLocalServer": false,
+            "Host": "0.peerjs.com",
+            "Port": 443,
+            "Path": "/",
+            "Key": "peerjs",
+            "Secure": true,
+            "PingInterval": 3000
+        }
+    ]
+}

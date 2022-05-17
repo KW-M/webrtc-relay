@@ -11,58 +11,58 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func GetDefaultPeerInitOptions() PeerInitOptions {
+func GetPeerjsCloudPeerInitOptions() PeerInitOptions {
 	return PeerInitOptions{
 		Key:          "peerjs",
 		Host:         "0.peerjs.com",
 		Port:         443,
 		PingInterval: 5000,
 		Path:         "/",
-
-		// Secure: true if you're using SSL with this server.
-		Secure: false,
-		//Configuration hash passed to RTCPeerConnection. This hash contains any custom ICE/TURN server configuration. Defaults to { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }], 'sdpSemantics': 'unified-plan' }
+		Secure:       false,
 		Configuration: webrtc.Configuration{
 			ICEServers: []webrtc.ICEServer{{
 				URLs: []string{"stun:stun.l.google.com:19302"},
 			}},
 			SDPSemantics: webrtc.SDPSemanticsUnifiedPlan,
 		},
-		// Debug
-		// Prints log messages depending on the debug level passed in. Defaults to 0.
-		// 0 Prints no logs.
-		// 1 Prints only errors.
-		// 2 Prints errors and warnings.
-		// 3 Prints all logs.
-		Debug: 0,
-		//Token a string to group peers
-		Token: "",
-		// Retry Count of times to retry connecting to this peer server before moving on to the next peer server in the PeerInitOptions list.
-		RetryCount: 2,
-
-		// -------------------------
-		// StartLocalServer - if true, the peerjs-go module will start a local peerjs Server with the same config, and then connect to it.
+		Debug:            2,
+		Token:            "",
+		RetryCount:       2,
 		StartLocalServer: false,
-		// (local peerjs Server only) Prints log messages from the local peer js server depending on the debug level passed in. Defaults to 0.
-		ServerLogLevel: "error",
-		// (local peerjs server only) How long to hold onto disconnected peer connections before releasing them & their peer ids.
-		ExpireTimeout: 300000,
-		// (local peerjs server only) How long to untill disconeected peer connections are marked as not alive.
-		AliveTimeout: 300000,
-		// (local peerjs server only) How many peers are allowed to be connected to this peer server at the same time.
-		ConcurrentLimit: 100,
-		// (local peerjs server only) Allow peerjs clients to get a list of connected peers from this server
-		AllowDiscovery: false,
-		// (local peerjs server only) How long the outgoing server websocket message queue can grow before dropping messages.
-		CleanupOutMsgs: 100,
 	}
 }
 
-func GetDefaultProgramConfig() ProgramConfig {
-	peerInitOpts := GetDefaultPeerInitOptions()
-	return ProgramConfig{
-		BasePeerId:                     "go-robot-",
-		initialRobotPeerIdEndingNumber: 0,
+func GetLocalServerPeerInitOptions() PeerInitOptions {
+	return PeerInitOptions{
+		Key:          "peerjs",
+		Host:         "localhost",
+		Port:         9000,
+		PingInterval: 5000,
+		Path:         "/",
+		Secure:       false,
+		Debug:        2,
+		Token:        "",
+		RetryCount:   2,
+		Configuration: webrtc.Configuration{
+			ICEServers:   []webrtc.ICEServer{},
+			SDPSemantics: webrtc.SDPSemanticsUnifiedPlan,
+		},
+		// -------------------------
+		StartLocalServer: true,
+		ServerLogLevel:   "warn",
+		ExpireTimeout:    300000,
+		AliveTimeout:     300000,
+		ConcurrentLimit:  100,
+		AllowDiscovery:   false,
+		CleanupOutMsgs:   100,
+	}
+}
+
+func GetDefaultRelayConfig() WebrtcRelayConfig {
+	peerInitOpts := GetPeerjsCloudPeerInitOptions()
+	return WebrtcRelayConfig{
+		BasePeerId:                     "go-relay-",
+		initialRelayPeerIdEndingNumber: 0,
 		PeerInitConfigs:                []*PeerInitOptions{&peerInitOpts},
 		NamedPipeFolder:                "/tmp/webtrc-relay-pipes/",
 		CreateDatachannelNamedPipes:    true,
@@ -94,30 +94,30 @@ func StringToLogLevel(s string) (log.Level, error) {
 	}
 }
 
-func ReadConfigFile(configFilePath string) (*ProgramConfig, error) {
-	config := GetDefaultProgramConfig()
+func ReadConfigFile(configFilePath string) (WebrtcRelayConfig, error) {
+	config := GetDefaultRelayConfig()
 
 	// Read the config file
 	configFile, err := os.Open(configFilePath)
 	if err != nil {
-		return &config, err
+		return config, err
 	}
 	defer configFile.Close()
 
-	// read our opened jsonFile as a byte array.
-	byteValues, err := ioutil.ReadAll(configFile)
+	// read our opened json file as a byte array.
+	jsonConfigBytes, err := ioutil.ReadAll(configFile)
 	if err != nil {
-		return &config, err
+		return config, err
 	}
 
 	// we unmarshal our byteArray which contains our
-	// jsonFile's content into 'users' which we defined above
-	err = json.Unmarshal(byteValues, &config)
+	// jsonFile's content into 'config' which we defined above
+	err = json.Unmarshal(jsonConfigBytes, &config)
 	if err != nil {
-		return &config, err
+		return config, err
 	}
 
-	return &config, nil
+	return config, nil
 }
 
 // if tries == 0 {

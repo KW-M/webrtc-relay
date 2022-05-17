@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func createCloudTestConfig(createPipes bool) ProgramConfig {
+func createCloudTestConfig(createPipes bool) WebrtcRelayConfig {
 
 	// FOR Connecting to a LOCAL PEERJS SERVER RUNNING ON THIS COMPUTER:
-	programConfig := GetDefaultProgramConfig()
+	programConfig := GetDefaultRelayConfig()
 	programConfig.LogLevel = "debug"
 	programConfig.CreateDatachannelNamedPipes = createPipes
 	programConfig.PeerInitConfigs[0].Host = "ssrov-peerjs-server.herokuapp.com" //"0.peerjs.com"
@@ -27,10 +27,10 @@ func createCloudTestConfig(createPipes bool) ProgramConfig {
 	return programConfig
 }
 
-func createLocalTestConfig(startLocalServer bool, createPipes bool) ProgramConfig {
+func createLocalTestConfig(startLocalServer bool, createPipes bool) WebrtcRelayConfig {
 
 	// FOR Connecting to a LOCAL PEERJS SERVER RUNNING ON THIS COMPUTER:
-	programConfig := GetDefaultProgramConfig()
+	programConfig := GetDefaultRelayConfig()
 	programConfig.LogLevel = "debug"
 	programConfig.CreateDatachannelNamedPipes = createPipes
 	programConfig.PeerInitConfigs[0].Host = "localhost"
@@ -59,7 +59,7 @@ func getPeerjsGoTestOpts(peerInitConfig *PeerInitOptions) peer.Options {
 func TestRelayStartup(t *testing.T) {
 	// create a new relay
 	programConfig := createLocalTestConfig(true, false)
-	relay := CreateWebrtcRelay(&programConfig)
+	relay := CreateWebrtcRelay(programConfig)
 	go relay.Start()
 
 	<-time.After(time.Second * 50)
@@ -71,7 +71,7 @@ func TestMsgRelay(t *testing.T) {
 	// create a new relay
 	localProgramConfigWithServer := createLocalTestConfig(true, false)
 	// localProgramConfigWithServer := createCloudTestConfig(false)
-	relay := CreateWebrtcRelay(&localProgramConfigWithServer)
+	relay := CreateWebrtcRelay(localProgramConfigWithServer)
 	go relay.Start()
 	defer relay.Stop()
 
@@ -132,7 +132,7 @@ func TestMsgRelay(t *testing.T) {
 }
 
 func TestPeer(t *testing.T) {
-	robotPeerId := "go-robot-0"
+	relayPeerId := "go-relay-0"
 
 	// create a new relay
 	localProgramConfigWithServer := createLocalTestConfig(false, false)
@@ -152,14 +152,14 @@ func TestPeer(t *testing.T) {
 	// }()
 	clientPeer.On("open", func(id interface{}) {
 		clientId := id.(string)
-		println("Client Peer Open: ", clientId, " (Client) now connecting to ", robotPeerId, " (Relay)")
+		println("Client Peer Open: ", clientId, " (Client) now connecting to ", relayPeerId, " (Relay)")
 
 		sendingMessages := [...]string{
 			"from relay to client_msg1",
 			"from relay to client_msg2",
 		}
 
-		dataConn, err := clientPeer.Connect(robotPeerId, peer.NewConnectionOptions())
+		dataConn, err := clientPeer.Connect(relayPeerId, peer.NewConnectionOptions())
 		assert.NoError(t, err)
 		assert.NotNil(t, dataConn)
 		dataConn.On("open", func(none interface{}) {

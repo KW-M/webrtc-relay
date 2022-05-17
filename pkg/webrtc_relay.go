@@ -20,16 +20,16 @@ type WebrtcRelay struct {
 
 	// --- Private Fields ---
 	// Config options for this WebrtcRelay
-	config *ProgramConfig
+	config WebrtcRelayConfig
 	// The signal to stop the WebrtcRelay
 	stopRelaySignal *UnblockSignal
 }
 
-func CreateWebrtcRelay(configOptions *ProgramConfig) *WebrtcRelay {
+func CreateWebrtcRelay(config WebrtcRelayConfig) *WebrtcRelay {
 
 	// Set up the logrus logger
-	var lo *log.Entry = log.WithField("|", "webrtc-relay")
-	level, err := StringToLogLevel(configOptions.LogLevel)
+	var lo *log.Entry = log.WithField("mod", "webrtc-relay")
+	level, err := StringToLogLevel(config.LogLevel)
 	if err != nil {
 		lo.Warn(err)
 	}
@@ -41,9 +41,9 @@ func CreateWebrtcRelay(configOptions *ProgramConfig) *WebrtcRelay {
 	})
 
 	return &WebrtcRelay{
-		Log:                       log.WithField("|", "webrtc-relay"),
+		Log:                       lo,
 		stopRelaySignal:           NewUnblockSignal(),
-		config:                    configOptions,
+		config:                    config,
 		RelayOutputMessageChannel: make(chan string),
 		RelayInputMessageChannel:  make(chan string),
 		ConnCtrl:                  nil,
@@ -65,25 +65,39 @@ func (relay *WebrtcRelay) Start() {
 	relay.Log.Debug("Creating named pipe relay folder: ", config.NamedPipeFolder)
 	os.MkdirAll(config.NamedPipeFolder, os.ModePerm)
 
-	// if relay.config.CreateDatachannelNamedPipes {
-	// // Create the two named pipes to send and receive data to / from the webrtc-relay user's backend code
-	// var msgPipe, err = CreateDuplexNamedPipeRelay(config.NamedPipeFolder+"to_datachannel_relay.pipe", config.NamedPipeFolder+"from_datachannel_relay.pipe", 4096)
-	// if err != nil {
-	// 	log.Fatal("Failed to create message relay named pipe: ", err)
-	// }
-	// defer msgPipe.Close()
+	if relay.config.CreateDatachannelNamedPipes {
+		// Create the two named pipes to send and receive data to / from the webrtc-relay user's backend code
+		var toDcPipePath string = config.NamedPipeFolder + "to_datachannel_relay.pipe"
+		var fromDcPipePath string = config.NamedPipeFolder + "from_datachannel_relay.pipe"
+		relay.Log.Debug("Making Named pipes: " + toDcPipePath + " & " + fromDcPipePath)
+		var msgPipe, err = CreateDuplexNamedPipeRelay(toDcPipePath, fromDcPipePath, 0666, 3)
+		if err != nil {
+			relay.Log.Fatal("Failed to create message relay named pipe: ", err)
+		}
+		defer msgPipe.Close()
 
-	// relay.FromDatachannelMessages = msgPipe.SendMessagesToPipe
-	// relay.RelayInputMessageChannel = msgPipe.GetMessagesFromPipe
-	// go msgPipe.RunPipeLoops(relay.stopRelaySignal)
-	// }
-
-	mediaSrc, err := CreateNamedPipeMediaSource(config.NamedPipeFolder+"vido.pipe", 10000, h264FrameDuration, "video/h264", "my-stream")
-	if err != nil {
-		log.Error("Error creating named pipe media source: ", err)
-		return
+		go msgPipe.RunPipeLoops()
+		go func() {
+			for {
+				select {
+				case msg := <-relay.RelayOutputMessageChannel:
+					msgPipe.SendMessageToPipe(msg)
+				case msg := <-msgPipe.MessagesFromPipeChannel:
+					relay.Log.Debug("Got message from pipe: ", msg)
+					relay.RelayInputMessageChannel <- msg
+				case <-relay.stopRelaySignal.GetSignal():
+					return
+				}
+			}
+		}()
 	}
-	cameraLivestreamVideoTrack = mediaSrc.WebrtcTrack
+
+	// mediaSrc, err := CreateNamedPipeMediaSource(config.NamedPipeFolder+"vido.pipe", 10000, h264FrameDuration, "video/h264", "my-stream")
+	// if err != nil {
+	// 	log.Error("Error creating named pipe media source: ", err)
+	// 	return
+	// }
+	// cameraLivestreamVideoTrack = mediaSrc.WebrtcTrack
 	// go mediaSrc.StartMediaStream(relay.stopRelaySignal)
 
 	// Setup the peerjs client to accept webrtc connections

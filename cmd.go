@@ -13,31 +13,20 @@ import (
 )
 
 // command line flag placeholder variables
-var configFilePath string = "./secret_config.json"
+var configFilePath string
 
-// var config *relay.ProgramConfig
-// var msgPipe *relay.DuplexNamedPipeRelay
-
-// func sendMessageThroughNamedPipez(message string) {
-// 	select {
-// 	case msgPipe.SendMessagesToPipe <- message:
-// 		log.Println("Sent message: ", message)
-// 	case <-time.After(time.Millisecond * 50):
-// 		log.Error("Pipe: Go channel is full! Msg:", message)
-// 	}
-// }
-
+// Parse the command line parameters passed to program in the shell eg "-a" in "ls -a"
 func parseProgramCmdlineFlags() {
 	flag.StringVar(&configFilePath, "config-file", "webrtc-relay-config.json", "Path to the config file. Default is webrtc-relay-config.json")
 	flag.Parse()
 }
 
 func main() {
-	println("------------ Starting WebRTC Relay ----------------")
 
-	// Parse the command line parameters passed to program in the shell eg "-a" in "ls -a"
-	// read the config file and set it to the config global variable
 	parseProgramCmdlineFlags()
+	println("------------ Starting WebRTC Relay ----------------|")
+
+	// read the provided config file and set it to the config struct variable
 	config, err := relayLib.ReadConfigFile(configFilePath)
 	if err != nil {
 		log.Fatal("Failed to read config file: ", err)
@@ -50,11 +39,13 @@ func main() {
 	// start the relay
 	relay := relayLib.CreateWebrtcRelay(config)
 	go relay.Start()
+	defer relay.Stop()
 
 	// Wait for a signal to stop the program
 	systemExitCalled := make(chan os.Signal, 1)                                                     // Create a channel to listen for an interrupt signal from the OS.
 	signal.Notify(systemExitCalled, os.Interrupt, syscall.SIGQUIT, syscall.SIGTERM, syscall.SIGHUP) // tell the OS to send us a signal on the systemExitCalled go channel when it wants us to exit
-	defer time.Sleep(time.Second)                                                                   // sleep a Second at very end to allow everything to finish.
+	defer time.Sleep(time.Second)                                                                   // sleep a Second at very end to allow everything to finish and clean up.
+
 	// wait until a signal on the done or systemExitCalled go channel variables is received.
 	select {
 	case <-programShouldQuitSignal.GetSignal():

@@ -89,13 +89,10 @@ func (pipe *NamedPipeRelay) SendMessageToPipe(msg string) {
 }
 
 func (pipe *NamedPipeRelay) RunPipeLoops() error {
+	pipe.log.Debug("Starting pipe loop: ")
 	defer pipe.Close()
 openloop:
 	for {
-		// if pipe.pipeFileOpenMode&os.O_RDWR == 0 {
-		// 	pipe.log.Error("Adding O_NONBLOCK")
-		// 	pipe.pipeFileOpenMode |= syscall.O_NONBLOCK
-		// }
 
 		var err error
 		pipe.pipeFile, err = os.OpenFile(pipe.pipeFilePath, pipe.pipeFileOpenMode, os.ModeNamedPipe|fs.FileMode(pipe.pipeFilePermissions))
@@ -104,7 +101,7 @@ openloop:
 			<-time.After(time.Second)
 			continue
 		}
-		log.Print("Pipe file open: ", pipe.pipeFilePath)
+		pipe.log.Debug("Pipe file open: ", pipe.pipeFilePath)
 
 		if pipe.pipeFileOpenMode == os.O_RDONLY || pipe.pipeFileOpenMode == os.O_RDWR {
 			// read messages from pipe loop
@@ -118,7 +115,7 @@ openloop:
 					continue openloop
 				}
 				msg := scanner.Text()
-				println(msg)
+				pipe.log.Debug(msg)
 				pipe.MessagesFromPipeChannel <- msg
 			}
 		}
@@ -131,7 +128,6 @@ openloop:
 type DuplexNamedPipeRelay struct {
 	incomingPipe            *NamedPipeRelay
 	outgoingPipe            *NamedPipeRelay
-	SendMessagesToPipe      chan string
 	MessagesFromPipeChannel chan string
 	log                     *log.Entry
 	exitSignal              *UnblockSignal
@@ -140,7 +136,7 @@ type DuplexNamedPipeRelay struct {
 func CreateDuplexNamedPipeRelay(incomingPipeFilePath string, outgoingPipeFilePath string, pipeFilePermissions uint32, readChannelBufferCount int) (*DuplexNamedPipeRelay, error) {
 	var duplexPipe = DuplexNamedPipeRelay{
 		exitSignal: NewUnblockSignal(),
-		log:        log.WithField("duplex_pipe_pair", true),
+		log:        log.WithField("mod", "webrtc_relay/duplex_pipe_pair"),
 	}
 
 	var err error

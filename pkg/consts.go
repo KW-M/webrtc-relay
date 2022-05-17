@@ -51,7 +51,7 @@ type PeerInitOptions struct {
 }
 
 // configuration for webrtc-relay
-type ProgramConfig struct {
+type WebrtcRelayConfig struct {
 
 	// a list of peer servers to attempt to connect to, in order of preference
 	// Default: !!empty list!!
@@ -59,14 +59,14 @@ type ProgramConfig struct {
 
 	// the webrtc-relay will try to aquire a peerjs peer id that is this string with an int tacked on the end.
 	// if that peer id is taken, it will increment the ending int and try again.
-	// Default: "go-robot-"
+	// Default: "go-relay-"
 	BasePeerId string
 
-	// To handle the case where multiple robots are running at the same time,
+	// To handle the case where multiple relays are running at the same time,
 	// we make the PeerId of this ROBOT the BasePeerId plus this number tacked on
 	// the end (eg: iROBOT-0) that we increment if the current peerId is already taken.
 	// Default: 0
-	initialRobotPeerIdEndingNumber int
+	initialRelayPeerIdEndingNumber int
 
 	// The folder path (w trailing slash) where the named pipes should be created to act as a relay for messages and media streams sent from your prefered programming language (eg: python)
 	// Default: "/tmp/webtrc-relay-pipes/"
