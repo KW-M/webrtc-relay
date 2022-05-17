@@ -89,7 +89,6 @@ func (pipe *NamedPipeRelay) SendMessageToPipe(msg string) {
 }
 
 func (pipe *NamedPipeRelay) RunPipeLoops() error {
-	pipe.log.Debug("Starting pipe loop: ")
 	defer pipe.Close()
 openloop:
 	for {
@@ -115,7 +114,6 @@ openloop:
 					continue openloop
 				}
 				msg := scanner.Text()
-				pipe.log.Debug(msg)
 				pipe.MessagesFromPipeChannel <- msg
 			}
 		}

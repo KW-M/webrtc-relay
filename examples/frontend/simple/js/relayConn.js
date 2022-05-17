@@ -34,7 +34,7 @@ function connectToRelay(relayPeerId, connectionOpenCallback, connectionFailedCal
             serialization: 'none' // webrtc-relay doesn't support js binarypack serialization so we must set this to none.
         })
 
-        // Handle when the datachannel is open (ie the connection to the rov sucecceded):
+        // Handle when the datachannel is open (ie the connection to the relay sucecceded):
         relayDatachannel.on('open', () => {
             console.info("Relay connection (ie: datachannel) is open!")
             connectionOpenCallback(relayDatachannel)
@@ -100,11 +100,11 @@ function connectToRelay(relayPeerId, connectionOpenCallback, connectionFailedCal
 
             // Add the stream to a new html video element and append it to the page:
             var video = document.createElement('video');
+            document.body.appendChild(video);
             video.srcObject = remoteStream;
             video.muted = true
             video.autoplay = true
             video.controls = false
-            document.body.appendChild(video);
             video.play();
 
         });

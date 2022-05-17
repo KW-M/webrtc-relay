@@ -55,15 +55,15 @@ async def send_messages(duplex_relay):
 
 async def start_test_pattern_video_stream(peer_id_to_video_call):
 
-    VIDEO_STREAM_NAMED_PIPE_PATH = RELAY_NAMED_PIPES_FOLDER + 'test_pattern_video_stream.pipe'
-
     # make a metadata-only message to tell the relay to create a new named pipe for acceping video bytes and then media call the given peer id with that media stream:
     outgoing_msg_metadata = json.dumps({
-        "TargetPeers": [peer_id_to_video_call],
+        "TargetPeerIds": [peer_id_to_video_call],
         "Action":
         "Media_Call_Peer",
-        "Params":
-        ["This_is_the_stream_id", "video/h264", VIDEO_STREAM_NAMED_PIPE_PATH]
+        "Params": [
+            "This_is_the_track_id", "video/h264",
+            "test_pattern_video_stream.pipe"
+        ]
     })
     await duplex_relay.write_message(outgoing_msg_metadata)
 
@@ -72,18 +72,23 @@ async def start_test_pattern_video_stream(peer_id_to_video_call):
 
     # Next start piping the output of this ffmpeg command (generates a test pattern as h264 encoded video) to the named pipe,
     # NOTE that this requires the ffmpeg command to be installed and in the PATH
-    await Command_Output_To_Named_Pipe(
-        pipe_file_path=VIDEO_STREAM_NAMED_PIPE_PATH,
+    video_cmd = Command_Output_To_Named_Pipe(
+        pipe_file_path=RELAY_NAMED_PIPES_FOLDER +
+        'test_pattern_video_stream.pipe',
         command_string=
-        'ffmpeg -f avfoundation -pix_fmt nv12 -video_size 640x480 -use_wallclock_as_timestamps 1 -framerate 30 -i default -f h264 pipe:1',
-        create_pipe=False).start_cmd()
+        'ffmpeg -hide_banner -f lavfi -i testsrc -pix_fmt yuv420p -vcodec libx264 -profile:v baseline -level:v 1.0 -preset ultrafast -tune zerolatency -b:v 900k -f h264 -y pipe:1',
+        create_pipe=False)
+    # await video_cmd.start_cmd()
+    #'ffmpeg -f avfoundation -pix_fmt nv12 -video_size 640x480 -use_wallclock_as_timestamps 1 -framerate 30 -i default -f h264 pipe:1',
+    #ffmpeg -hide_banner -f lavfi -rtbufsize 1M -use_wallclock_as_timestamps 1 -i "testsrc=size=1280x720:rate=30" -r 30 -vcodec libx264 -preset "ultrafast" -tune zerolatency  -use_wallclock_as_timestamps 1 -fflags nobuffer -b:v 200k -f h264 -y pipe:1
 
 
+#
 ######## Main Program ###########
 ######################################
 async def main():
 
-    # let python know that duplex_relay should be a globally accesable variable:
+    # let python know that these should be globally accesable variables (accessable outside of this function)):
     global duplex_relay, webrtc_relay_cmd_process
 
     # Start the webrtc-relay in a seperate process:
@@ -109,5 +114,5 @@ try:
 except KeyboardInterrupt:
     pass
 finally:
-    duplex_relay.cleanup()
     webrtc_relay_cmd_process.kill()
+    duplex_relay.cleanup()

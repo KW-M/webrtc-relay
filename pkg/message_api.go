@@ -48,14 +48,35 @@ func runFunctionForTargetPeers(targetPeerIds []string, conn *WebrtcConnectionCtr
 		}
 	} else {
 		// Otherwise send it to just the specified target peers:
-		for _, targetPeerId := range targetPeerIds {
-			if dataConn := conn.GetActiveDataConnection(targetPeerId); dataConn != nil {
-				funcToRun(targetPeerId, dataConn)
+		for _, peerId := range targetPeerIds {
+			if dataConn := conn.GetActiveDataConnection(peerId); dataConn != nil {
+				funcToRun(peerId, dataConn)
 			} else {
-				funcToRun(targetPeerId, nil)
+				funcToRun(peerId, nil)
 			}
 		}
 	}
+}
+
+func handleConnectToPeersMsg(metaData RelayPipeToDatachannelMetadata, conn *WebrtcConnectionCtrl) {
+	// log := conn.log
+
+	// // initiate connections to the target peers specified in the metadata
+	// for _, targetPeerId := range metaData.TargetPeerIds {
+	// 	// if conn.CurrentRelayPeer == nil || !conn.CurrentRelayPeer.open {
+	// 	// 	log.Error("Cannot connect to peer: The relay peer has not yet been established (is nil).")
+	// 	// 	return
+	// 	// }
+	// 	// dataConn, err := conn.CurrentRelayPeer.Connect(targetPeerId, peerjs.NewConnectionOptions())
+	// 	// if err != nil {
+	// 	// 	log.Error("Error connecting to peer: ", targetPeerId, "err: ", err)
+	// 	// 	continue
+	// 	// }
+
+	// 	// dataConn.On("open", func(interface{}) {
+	// 	// 	conn.peerConnectionOpenHandler(dataConn)
+	// 	// })
+	// }
 }
 
 func handleStartMediaStreamMsg(metaData RelayPipeToDatachannelMetadata, conn *WebrtcConnectionCtrl) {
@@ -78,9 +99,15 @@ func handleStartMediaStreamMsg(metaData RelayPipeToDatachannelMetadata, conn *We
 		return
 	}
 
+	// initVideoTrack()
+	// pipeVideoToStream(conn.Relay.stopRelaySignal)
+	// targetPeerId := metaData.TargetPeerIds[0]
+
+	// log.Debug("Video calling to peer: ", targetPeerId)
+
 	// call all of the target peer ids:
 	runFunctionForTargetPeers(metaData.TargetPeerIds, conn, func(targetPeerId string, dataConn *peerjs.DataConnection) {
-		_, err = conn.CurrentRelayPeer.Call(targetPeerId, mediaSrc.WebrtcTrack, peerjs.NewConnectionOptions())
+		_, err := conn.CurrentRelayPeer.Call(targetPeerId, mediaSrc.WebrtcTrack, peerjs.NewConnectionOptions())
 		if err != nil {
 			log.Error("Error media calling client peer: ", targetPeerId)
 		}
@@ -88,6 +115,15 @@ func handleStartMediaStreamMsg(metaData RelayPipeToDatachannelMetadata, conn *We
 
 	// start relaying bytes from the named pipe to the webrtc media channel
 	go mediaSrc.StartMediaStream()
+}
+
+func handleStopMediaStreamMsg(metadata RelayPipeToDatachannelMetadata, conn *WebrtcConnectionCtrl) {
+	// TODO: implement
+	// log := conn.log
+
+	// streamName := metadata.Params[0]
+
+	// conn
 }
 
 func handleMessageFromBackend(message string, conn *WebrtcConnectionCtrl) {
@@ -102,6 +138,11 @@ func handleMessageFromBackend(message string, conn *WebrtcConnectionCtrl) {
 	if len(metaData.Action) > 0 {
 		log.Debug("Handling message action: " + metaData.Action)
 		if metaData.Action == "Media_Call_Peer" {
+			handleStartMediaStreamMsg(metaData, conn)
+		} else if metaData.Action == "Stop_Media_Call" {
+			handleStopMediaStreamMsg(metaData, conn)
+		} else if metaData.Action == "Connect" {
+			handleConnectToPeersMsg(metaData, conn)
 		}
 	}
 

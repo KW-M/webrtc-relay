@@ -83,7 +83,6 @@ func (relay *WebrtcRelay) Start() {
 				case msg := <-relay.RelayOutputMessageChannel:
 					msgPipe.SendMessageToPipe(msg)
 				case msg := <-msgPipe.MessagesFromPipeChannel:
-					relay.Log.Debug("Got message from pipe: ", msg)
 					relay.RelayInputMessageChannel <- msg
 				case <-relay.stopRelaySignal.GetSignal():
 					return

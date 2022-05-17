@@ -31,7 +31,7 @@ func CreateNamedPipeMediaSource(pipeFilePath string, readBufferSize int, readInt
 		log:            log.WithField("media_pipe", pipeFilePath),
 	}
 
-	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: mediaMimeType}, trackName, trackName+"_stream")
+	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: mediaMimeType}, trackName, trackName+"-stream")
 	if err != nil {
 		pipe.log.Error("Failed to create webrtc track: ", err)
 		return nil, err
@@ -72,16 +72,17 @@ func (pipe *NamedPipeMediaSource) StartMediaStream() error {
 		}
 
 		mimeType := pipe.WebrtcTrack.Codec().MimeType
-		if mimeType == "video/h264" {
-			err = read_h264(pipe)
-		} else if mimeType == "video/x-ivf" || mimeType == "video/x-indeo" {
-			err = read_ivf(pipe)
-		} else if mimeType == "audio/ogg" {
-			err = read_ogg(pipe)
-		} else {
-			err = read_raw_stream(pipe, pipe.readBufferSize, pipe.readInterval)
-			log.Debug("Unknow Media Source MimeType: " + mimeType + " sending raw stream as fallback")
-		}
+		// if mimeType == "video/h264" {
+		// 	err = read_h264(pipe)
+		// } else if mimeType == "video/x-ivf" || mimeType == "video/x-indeo" {
+		// 	err = read_ivf(pipe)
+		// } else if mimeType == "audio/ogg" {
+		// 	err = read_ogg(pipe)
+		// } else {
+		log.Debug("Unknow Media Source MimeType: " + mimeType + " sending raw stream as fallback")
+		err = read_raw_stream(pipe, pipe.readBufferSize, pipe.readInterval)
+
+		// }
 
 		if err != nil {
 			pipe.log.Error("Error reading media source:", err)

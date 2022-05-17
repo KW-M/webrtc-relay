@@ -16,7 +16,7 @@ type WebrtcConnectionCtrl struct {
 	Relay *WebrtcRelay
 	// To handle the case where multiple relays are running at the same time,
 	// we make the PeerId of this ROBOT the BasePeerId plus this number tacked on
-	// the end (eg: iROBOT-0) that we increment if the current peerId is already taken.
+	// the end (eg: relay-0) that we increment if the current peerId is already taken (relay-1, relay-2, etc..)
 	RelayPeerIdEndingNum int
 	// the current peer object associated with this WebrtcConnectionCtrl:
 	CurrentRelayPeer *peerjs.Peer
@@ -70,10 +70,9 @@ func (conn *WebrtcConnectionCtrl) handleMessagesFromBackend() {
 	for {
 		select {
 		case msgFromBackend := <-conn.Relay.RelayInputMessageChannel:
-			conn.log.Printf("Got msg from backend: %s", msgFromBackend)
 			handleMessageFromBackend(msgFromBackend, conn)
 		case <-conn.Relay.stopRelaySignal.GetSignal():
-			conn.log.Println("Exiting handleMessagesFromBackend loop.")
+			conn.log.Debug("Exiting handleMessagesFromBackend loop.")
 			return
 		}
 	}
@@ -188,73 +187,60 @@ func (conn *WebrtcConnectionCtrl) StartPeerServerConnectionLoop() {
  * This function should be called within the peer.On("open",) function of the relayPeer object.
  * This function DOES NOT block, BUT the passed relayPeer parameter MUST NOT GO OUT OF SCOPE, or the event listeners will be garbage collected and (maybe) closed.
  */
-func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(relayPeer *peerjs.Peer, peerId string, peerServerOpts peerjs.Options, relayConnLog *log.Entry) {
-	relayPeer.On("connection", func(data interface{}) {
-		conn.CurrentRelayPeer = relayPeer
-		clientPeerDataConnection := data.(*peerjs.DataConnection) // typecast to DataConnection
-		var clientPeerId string = clientPeerDataConnection.GetPeerID()
+func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(clientPeerDataConnection *peerjs.DataConnection, peerServerOpts peerjs.Options) {
+	var clientPeerId string = clientPeerDataConnection.GetPeerID()
 
-		log := relayConnLog.WithField("peer", relayPeer.ID)
-		log.Info("Peer is connecting to rov... peer id: ", clientPeerDataConnection.GetPeerID())
+	log := conn.log.WithField("peer", conn.CurrentRelayPeer.ID)
+	log.Info("Peer is connecting to relay... peer id: ", clientPeerDataConnection.GetPeerID())
 
-		clientPeerDataConnection.On("open", func(interface{}) {
-			log.Info("Peer connection established with Peer ID: ", clientPeerDataConnection.GetPeerID())
-			// add this newly open peer connection to the map of active connections
-			conn.ActiveDataConnectionsToThisRelay[clientPeerId+"::"+peerServerOpts.Host] = clientPeerDataConnection
+	clientPeerDataConnection.On("open", func(interface{}) {
+		log.Info("Peer connection established with Peer ID: ", clientPeerDataConnection.GetPeerID())
+		// add this newly open peer connection to the map of active connections
+		conn.ActiveDataConnectionsToThisRelay[clientPeerId+"::"+peerServerOpts.Host] = clientPeerDataConnection
 
-			// send a metadata message down the named message pipe that a new peer has connected
-			if conn.Relay.config.AddMetadataToPipeMessages {
-				msg := generateMessageMetadataForBackend(clientPeerId, "Connected", "")
-				conn.SendMessageToBackend(msg)
-			}
+		// send a metadata message down the named message pipe that a new peer has connected
+		if conn.Relay.config.AddMetadataToPipeMessages {
+			msg := generateMessageMetadataForBackend(clientPeerId, "Connected", "")
+			conn.SendMessageToBackend(msg)
+		}
 
-			// handle incoming messages from this client peer
-			clientPeerDataConnection.On("data", func(msgBytes interface{}) {
-				var msgString string = string(msgBytes.([]byte))
-				log.Debug("clientDataConnection 🚘 GOT MESSAGE: ", msgString)
-				conn.handleIncomingDatachannelMessage(msgString, relayPeer, clientPeerId, clientPeerDataConnection, log)
-			})
-
-			// log.Info("VIDEO CALLING client peer: ", clientPeerId)
-			// _, err := relayPeer.Call(clientPeerId, cameraLivestreamVideoTrack, peerjs.NewConnectionOptions())
-			// if err != nil {
-			// 	log.Error("Error video calling client peer: ", clientPeerId)
-			// 	clientPeerDataConnection.Close()
-			// 	return
-			// }
-
+		// handle incoming messages from this client peer
+		clientPeerDataConnection.On("data", func(msgBytes interface{}) {
+			var msgString string = string(msgBytes.([]byte))
+			log.Debug("clientDataConnection 🚘 GOT MESSAGE: ", msgString)
+			conn.handleIncomingDatachannelMessage(msgString, conn.CurrentRelayPeer, clientPeerId, clientPeerDataConnection, log)
 		})
 
-		clientPeerDataConnection.On("close", func(message interface{}) {
-			log.Info("CLIENT PEER DATACHANNEL CLOSE EVENT", message)
-			delete(conn.ActiveDataConnectionsToThisRelay, clientPeerId+"::"+peerServerOpts.Host) // remove this connection from the map of active connections
+	})
 
-			// send a metadata message down the named message pipe that this peer connection has been closed
-			if conn.Relay.config.AddMetadataToPipeMessages {
-				msg := generateMessageMetadataForBackend(clientPeerId, "Closed", "")
-				conn.SendMessageToBackend(msg)
-			}
-		})
+	clientPeerDataConnection.On("close", func(message interface{}) {
+		log.Info("CLIENT PEER DATACHANNEL CLOSE EVENT", message)
+		delete(conn.ActiveDataConnectionsToThisRelay, clientPeerId+"::"+peerServerOpts.Host) // remove this connection from the map of active connections
 
-		clientPeerDataConnection.On("disconnected", func(message interface{}) {
-			log.Info("CLIENT PEER DATACHANNEL DISCONNECTED EVENT", message)
+		// send a metadata message down the named message pipe that this peer connection has been closed
+		if conn.Relay.config.AddMetadataToPipeMessages {
+			msg := generateMessageMetadataForBackend(clientPeerId, "Closed", "")
+			conn.SendMessageToBackend(msg)
+		}
+	})
 
-			// send a metadata message down the named message pipe that this peer has disconnected
-			if conn.Relay.config.AddMetadataToPipeMessages {
-				msg := generateMessageMetadataForBackend(clientPeerId, "Disconnected", "")
-				conn.SendMessageToBackend(msg)
-			}
-		})
+	clientPeerDataConnection.On("disconnected", func(message interface{}) {
+		log.Info("CLIENT PEER DATACHANNEL DISCONNECTED EVENT", message)
 
-		clientPeerDataConnection.On("error", func(message interface{}) {
-			errMessage := message.(error).Error()
-			log.Error("CLIENT PEER DATACHANNEL ERROR EVENT: ", errMessage)
-			if conn.Relay.config.AddMetadataToPipeMessages {
-				msg := generateMessageMetadataForBackend(clientPeerId, "Error", errMessage)
-				conn.SendMessageToBackend(msg)
-			}
-		})
+		// send a metadata message down the named message pipe that this peer has disconnected
+		if conn.Relay.config.AddMetadataToPipeMessages {
+			msg := generateMessageMetadataForBackend(clientPeerId, "Disconnected", "")
+			conn.SendMessageToBackend(msg)
+		}
+	})
 
+	clientPeerDataConnection.On("error", func(message interface{}) {
+		errMessage := message.(error).Error()
+		log.Error("CLIENT PEER DATACHANNEL ERROR EVENT: ", errMessage)
+		if conn.Relay.config.AddMetadataToPipeMessages {
+			msg := generateMessageMetadataForBackend(clientPeerId, "Error", errMessage)
+			conn.SendMessageToBackend(msg)
+		}
 	})
 }
 
@@ -294,7 +280,11 @@ func (conn *WebrtcConnectionCtrl) setupRelayPeer(peerOptions *peerjs.Options, st
 			exitFuncSignal.Trigger() // signal to this goroutine to exit and let the setupConnections loop take over and rerun this function
 		} else {
 			relayConnLog.Info("Relay Peer Established!")
-			conn.peerConnectionOpenHandler(relayPeer, relayPeerId, *peerOptions, relayConnLog)
+			relayPeer.On("connection", func(data interface{}) {
+				conn.CurrentRelayPeer = relayPeer
+				clientPeerDataConnection := data.(*peerjs.DataConnection) // typecast to DataConnection
+				conn.peerConnectionOpenHandler(clientPeerDataConnection, *peerOptions)
+			})
 		}
 	})
 

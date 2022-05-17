@@ -12,7 +12,7 @@ class Named_Pipe:
         self.create_pipe = create_pipe
 
     async def get_open_pipe(self, mode: str, timeout: float = 1):
-        print(f'Opening pipe: {self.pipe_file_path}')
+        print(f'PYTHON Opening pipe: {self.pipe_file_path}')
         # loop until sucessful
         while True:
 
@@ -109,7 +109,6 @@ class Named_Pipe_Relay:
 
                     while True:
                         msg = await self.pipe_message_queue.get()
-                        print("sending: " + msg)
                         if msg:
                             stream.write(msg + '\n')
                             stream.flush()
