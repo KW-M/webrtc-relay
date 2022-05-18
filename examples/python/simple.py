@@ -78,7 +78,7 @@ async def start_test_pattern_video_stream(peer_id_to_video_call):
         command_string=
         'ffmpeg -hide_banner -f lavfi -rtbufsize 1M -use_wallclock_as_timestamps 1 -i "testsrc=size=1280x720:rate=30" -r 30  -pix_fmt yuv420p -vcodec libx264 -profile:v baseline -level:v 1.0 -preset ultrafast -tune zerolatency -use_wallclock_as_timestamps 1 -fflags nobuffer -b:v 900k -f h264 -y pipe:1',
         create_pipe=False)
-    await video_cmd.start_cmd()
+    # await video_cmd.start_cmd()
     #'ffmpeg -f avfoundation -pix_fmt nv12 -video_size 640x480 -use_wallclock_as_timestamps 1 -framerate 30 -i default -f h264 pipe:1',
     #ffmpeg -hide_banner -f lavfi -rtbufsize 1M -use_wallclock_as_timestamps 1 -i "testsrc=size=1280x720:rate=30" -r 30 -vcodec libx264 -preset "ultrafast" -tune zerolatency  -use_wallclock_as_timestamps 1 -fflags nobuffer -b:v 200k -f h264 -y pipe:1
 
