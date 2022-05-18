@@ -19,9 +19,14 @@ Behind the scenes, this tool uses the [Pion WebRTC](https://github.com/pion/webr
 
 1. Install [Golang](https://go.dev) for your platform.
 
-   > Note On raspberry pi, apt ships an old version of go, so I recommend installing the latest version from the [Go website](https://go.dev/dl) - [Tutorial](https://www.jeremymorgan.com/tutorials/raspberry-pi/install-go-raspberry-pi)
+   > NOTE: on some linux distros like RaspberryPi os, apt ships an old version of go, so I recommend installing the latest version from the [Go website](https://go.dev/dl) - [Tutorial](https://www.jeremymorgan.com/tutorials/raspberry-pi/install-go-raspberry-pi)
 
-2. In a terminal run: **`git clone github.com/kw-m/webrtc-relay.git`** , then **`cd webrtc-relay`** into the folder then run **`go build`** which should give you an executable called `webrtc-relay` that you can run anywhere or put in your shell's PATH.
+2. In a terminal run: **`git clone github.com/kw-m/webrtc-relay.git`**,
+3. Then **`cd webrtc-relay`** into the folder
+4. Run **`go install .`**
+   > This should give you an executable called `webrtc-relay` in the folder `<your home folder>/go/bin/` (or wherever $GOPATH is set to).
+5. To be able to run the webrtc-relay command from anywhere add `~/go/bin` to your path by running **`echo "PATH=$PATH:$HOME/go/bin" >> ~/.profile`** then **`source ~/.profile`**
+   > **NOTE** if your shell dosn't use `~/.profile`, you'll want to replace `~/.profile` with `~/.bash_profile`, or `~/.zshrc` if either of those exist.
 
 ## Use with any programing langauge
 
