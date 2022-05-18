@@ -3,11 +3,11 @@
   <h1 align="center">WebRTC Relay</h1>
 </p>
 
-Relay low latency video and data between remote computers and any web browser over WebRTC. This tool is programing language independent (using named pipes) and should compile on \*any os where golang is supported (\*except windows for now).
+Relay low latency audio/video and data between remote computers and any web browser over WebRTC. This tool is programing language independent (using named pipes) and should compile on \*any os where golang is supported (\*except windows for now).
 
 ## Inspiration
 
-I made this tool as an alternative to UV4L-WebRTC with fewer webrtc-related constraints. My orignal use case was for controlling underwater drones over the internet, but this library could be used for any purpose where low latency video and/or data transport are needed. This project is a lot like [Bot Box](https://github.com/roboportal/bot_box) but with more flexibility, at the cost of less being implemented for you: bring your own frontend / backend etc...
+I made this tool as an oss alternative to UV4L-WebRTC with fewer webrtc-related constraints. My orignal use case was for controlling underwater drones over the internet, but this library could be used for any purpose where low latency video and/or data transport are needed. This project is similar to [Bot Box](https://github.com/roboportal/bot_box) but with more flexibility, at the cost of less being implemented for you: bring your own frontend / backend etc...
 
 ## Details
 
@@ -21,7 +21,7 @@ Behind the scenes, this tool uses the [Pion WebRTC](https://github.com/pion/webr
 
    > Note On raspberry pi, apt ships an old version of go, so I recommend installing the latest version from the [Go website](https://go.dev/dl) - [Tutorial](https://www.jeremymorgan.com/tutorials/raspberry-pi/install-go-raspberry-pi)
 
-2. In a terminal run: **`go install github.com/kw-m/webrtc-relay/cmd/webrtc-relay@latest`**
+2. In a terminal run: **`go install github.com/kw-m/webrtc-relay@latest`**
 
 ## Use in a Go program
 
@@ -38,25 +38,75 @@ Behind the scenes, this tool uses the [Pion WebRTC](https://github.com/pion/webr
    1. The relay will create two named pipe files in the "relayPipeFolder" (specified in your webrtcRelayConfig.json) named "
    2. One
 
-**Compressed video stream could come from:**
+## Relay Config Options
 
-- ffmpeg can get you a hardware encoded stream on most devices.
+See the example configs in [examples/python/configs](examples/python/configs)
 
-Raspberry Pi:
+For an updated list of config options available see the WebrtcRelayConfig struct in [pkg/consts.go](pkg/consts.go).
 
-- Use Raspicam or Libcamera-vid (raspi os buster or later) for hardware encoded video stream (broadcom video core).
+## Getting Media from Devices
+
+Most use cases involve getting video or audio from a device attached to the computer. In the examples I use the FFMPEG command line program which can get an h264 encoded video stream from just about any source (or to convert a raw video stream format to h264 encoding for the relay). Hardware encoding or any accelerated encoding can be great here for acheiving sub-second latency. The python examples have a simple class for sending the output of a command-line program like ffmpeg to a media named pipe created by the relay.
+
+### Raspberry Pi:
+
+- You can use raspicam-vid (older raspi OS) or libcamera-vid (Raspberry Pi os buster or later) for hardware encoded video stream using the broadcom video core).
+
+- For FFMPEG, the video codec parameter: "-vcodec h264_v4l2m2m" makes it encode h264 using the hardware encoding of the Raspberry Pi's Broadcom videocore
+
+#### -- TEST PATTERNS ---
+
+##### Basic 1280x720 resolution 30 FPS Test Pattern:
 
 ```sh
-# raspberry broadcom videocore TEST PATTERN WORKS!
-ffmpeg -hide_banner -f lavfi -i "testsrc=size=1280x720:rate=30" -r 30 -vcodec h264_v4l2m2m -f h264 -y pipe:1 > /tmp/webrtc-relay/vido.pipe
-## raspberry pi hardware-encoded lower latency test pattern:
-ffmpeg -hide_banner -f lavfi -rtbufsize 1M -use_wallclock_as_timestamps 1 -i "testsrc=size=1280x720:rate=30" -r 30 -vcodec h264_v4l2m2m -preset "ultrafast" -tune zerolatency  -use_wallclock_as_timestamps 1 -fflags nobuffer -b:v 200k -f h264 -y pipe:1 > /tmp/webrtc-relay/vido.pipe
-## raspi test pattern with clock:
-ffmpeg -hide_banner -f lavfi -rtbufsize 50M -use_wallclock_as_timestamps 1 -i "testsrc=size=1280x720:rate=30" -r 30 -vf "settb=AVTB,setpts='trunc(PTS/1K)*1K+st(1,trunc(RTCTIME/1K))-1K*trunc(ld(1)/1K)',drawtext=text='%{localtime}.%{eif\:1M*t-1K*trunc(t*1K)\:d}':fontcolor=black@1:fontsize=(h/10):x=(w-text_w)/2:y=10" -vcodec h264_v4l2m2m -preset "ultrafast" -tune zerolatency   -use_wallclock_as_timestamps 1 -fflags nobuffer -b:v 9k -f h264 -y pipe:1 > /tmp/webrtc-relay/vido.pipe
-## raspi camera feed (raspi os buster or later)
+ffmpeg -hide_banner -f lavfi -i "testsrc=size=1280x720:rate=30" -r 30 -vcodec h264_v4l2m2m -f h264 -y pipe:1
+```
+
+##### Lower latency with the same test pattern:
+
+```sh
+ffmpeg -hide_banner -f lavfi -rtbufsize 1M -use_wallclock_as_timestamps 1 -i "testsrc=size=1280x720:rate=30" -r 30 -vcodec h264_v4l2m2m -preset ultrafast -tune zerolatency  -use_wallclock_as_timestamps 1 -fflags nobuffer -b:v 900k -f h264 -y pipe:1
+```
+
+- use_wallclock_as_timestamps 1 | (I think) add timestamps to keep framerate consistant
+- fflags nobuffer | Do not buffer the input (testpattern) video at all - may suffer more stuttering/quality loss as a result
+- b:v 900k | Target output bitrate 900,000 bits per second. lower number results in lower quality & lower bandwith requirement.
+- preset ultrafast | Encoder preset - goes faster?
+- tune zerolatency | Encoder tune - also reduces latency?
+
+#### Low latency test pattern overlayed with miliseccond clock:
+
+```sh
+ffmpeg -hide_banner -f lavfi -rtbufsize 50M -use_wallclock_as_timestamps 1 -i "testsrc=size=1280x720:rate=30" -r 30 -vf "settb=AVTB,setpts='trunc(PTS/1K)*1K+st(1,trunc(RTCTIME/1K))-1K*trunc(ld(1)/1K)',drawtext=text='%{localtime}.%{eif\:1M*t-1K*trunc(t*1K)\:d}':fontcolor=black@1:fontsize=(h/10):x=(w-text_w)/2:y=10" -vcodec h264_v4l2m2m -preset ultrafast -tune zerolatency   -use_wallclock_as_timestamps 1 -fflags nobuffer -b:v 9k -f h264 -y pipe:1
+```
+
+(useful for quickly testing baseline media latency - take a screenshot with real clock and clock in video)
+Source: https://stackoverflow.com/questions/47543426/ffmpeg-embed-current-time-in-milliseconds-into-video
+
+### --- Raspberry Pi Camera (or third party camera) Feed ---
+
+h264 raspi camera feed w/o ffmpeg (raspi os buster or later)
+
+```sh
 libcamera-vid --width 960 --height 720 --codec h264 --profile high --level 4.2 --bitrate 800000 --framerate 30 --inline 1 --flush 1 --timeout 0 --nopreview 1 --output -
-# get raw libcamera (raspicamera output feed)
+```
+
+Get raw raspi camera output feed using libcamera
+
+```sh
 libcamera-vid --width 960 --height 720 --codec yuv420 --framerate 30 --flush 1 --timeout 0 --nopreview 1 --output -
-## pipe raw feed into ffmpeg and add timestamp (note that the output parameters of libcamera vid and before -i in the ffmpeg cmd must mach)
-libcamera-vid --width 960 --height 720 --codec yuv420 --framerate 20 --flush 1 --timeout 0 --nopreview 1 --output - | ffmpeg -hide_banner -f rawvideo -pix_fmt yuv420p -s 960x720 -framerate 20 -rtbufsize 1M -use_wallclock_as_timestamps 1 -i "pipe:" -vf "settb=AVTB,setpts='trunc(PTS/1K)*1K+st(1,trunc(RTCTIME/1K))-1K*trunc(ld(1)/1K)',drawtext=text='%{localtime}.%{eif\:1M*t-1K*trunc(t*1K)\:d}':fontcolor=black@1:fontsize=(h/10):x=(w-text_w)/2:y=10" -vcodec h264_v4l2m2m -preset "ultrafast" -tune zerolatency   -use_wallclock_as_timestamps 1 -fflags nobuffer -b:v 100k -f h264 -y pipe:1 > /tmp/webrtc-relay/vido.pipe
+```
+
+pipe raw camera feed into ffmpeg and add timestamp
+
+```sh
+libcamera-vid --width 960 --height 720 --codec yuv420 --framerate 20 --flush 1 --timeout 0 --nopreview 1 --output - | ffmpeg -hide_banner -f rawvideo -pix_fmt yuv420p -s 960x720 -framerate 20 -rtbufsize 1M -use_wallclock_as_timestamps 1 -i "pipe:" -vf "settb=AVTB,setpts='trunc(PTS/1K)*1K+st(1,trunc(RTCTIME/1K))-1K*trunc(ld(1)/1K)',drawtext=text='%{localtime}.%{eif\:1M*t-1K*trunc(t\*1K)\:d}':fontcolor=black@1:fontsize=(h/10):x=(w-text_w)/2:y=10" -vcodec h264_v4l2m2m -preset ultrafast -tune zerolatency -use_wallclock_as_timestamps 1 -fflags nobuffer -b:v 100k -f h264 -y pipe:1
+```
+
+- NOTE: That the output parameters of libcamera vid and before -i in the ffmpeg commmand must match
+
+## Mac OS:
+
+```sh
+
 ```
