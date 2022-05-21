@@ -13,20 +13,20 @@ I made this tool as an oss alternative to UV4L-WebRTC with fewer webrtc-related 
 
 Behind the scenes, this tool uses the [Pion WebRTC](https://github.com/pion/webrtc) stack and the [Peerjs-go](https://github.com/muka/peerjs-go) library for all the WebRTC-related stuff. This means you can use the PeerJS browser library and any peer.js signaling server (including the inbuilt peerjs-go signaling server) to make the webrtc connection easier. For the back-end interface, you can uses named pipes to send and recieve datachannel messages and video streams from your backend language of choice (so long as it supports reading and writing to named pipes)
 
-![Webrtc-Relay-Overview](Docs/Images/Webrtc-Relay-Overview.svg)
+![Webrtc-Relay-Overview](Docs/Images/Webrtc-Relay-Overview.drawio.svg)
 
 ## Standalone Install
 
 1. Install [Golang](https://go.dev) for your platform.
 
-   > NOTE: on some linux distros like RaspberryPi os, apt ships an old version of go, so I recommend installing the latest version from the [Go website](https://go.dev/dl) - [Tutorial](https://www.jeremymorgan.com/tutorials/raspberry-pi/install-go-raspberry-pi)
+   > **NOTE** on some linux distros like RaspberryPi os, apt ships an old version of go, so I recommend installing the latest version from the [Go website](https://go.dev/dl) - [Tutorial](https://www.jeremymorgan.com/tutorials/raspberry-pi/install-go-raspberry-pi)
 
 2. In a terminal run: **`git clone github.com/kw-m/webrtc-relay.git`**,
-3. Then **`cd webrtc-relay`** into the folder
+3. **`cd webrtc-relay`** into the folder
 4. Run **`go install .`**
    > This should give you an executable called `webrtc-relay` in the folder `<your home folder>/go/bin/` (or wherever $GOPATH is set to).
-5. To be able to run the webrtc-relay command from anywhere add `~/go/bin` to your path by running **`echo "PATH=$PATH:$HOME/go/bin" >> ~/.profile`** then **`source ~/.profile`**
-   > **NOTE** if your shell dosn't use `~/.profile`, you'll want to replace `~/.profile` with `~/.bash_profile`, or `~/.zshrc` if either of those exist.
+5. To be able to run the webrtc-relay command from anywhere (required for the examples) add `~/go/bin` to your path by running **`echo "PATH=$PATH:$HOME/go/bin" >> ~/.profile`** then **`source ~/.profile`**
+   > **NOTE** if your shell dosn't use `~/.profile`, you'll want to replace `~/.profile` with `~/.bash_profile`, or `~/.zshrc` if either of those files exist.
 
 ## Use with any programing langauge
 
@@ -59,11 +59,21 @@ For an updated list of config options available see the WebrtcRelayConfig struct
 
 Most use cases involve getting video or audio from a device attached to the computer. In the examples I use the FFMPEG command line program which can get an h264 encoded video stream from just about any source (or to convert a raw video stream format to h264 encoding for the relay). Hardware encoding or any accelerated encoding can be great here for acheiving sub-second latency. The python examples have a simple class for sending the output of a command-line program like ffmpeg to a media named pipe created by the relay.
 
+**Things to note with FFMPEG:**
+
+1.  You must have the ffmpeg command line program installed on your system.
+2.  ffmpeg command line option order MATTERS!
+    - `ffmpeg [global options] [input options] -i input [output options] output`
+3.  `-re` input option is needed to read input video files or test source at the right rate.
+4.  You must have the `-pix-format` output option set to `yuv420p` and `-f` output option set to `h264` (for widest browser support)
+5.  The video encoder/codec parameter `-c:v` or `-vcodec`:
+    - `libx264` is supported on almost all ffmpeg installs, but probably won't use available hardware encoders.
+    - `-vcodec h264_v4l2m2m` should be used on Raspberry Pi's as it takes advantage of the hardware encoding of the Broadcom videocore.
+    - (both output h264 video)
+
 ### Raspberry Pi:
 
 - You can use raspicam-vid (older raspi OS) or libcamera-vid (Raspberry Pi os buster or later) for hardware encoded video stream using the broadcom video core).
-
-- For FFMPEG, the video codec parameter: "-vcodec h264_v4l2m2m" makes it encode h264 using the hardware encoding of the Raspberry Pi's Broadcom videocore
 
 #### -- TEST PATTERNS ---
 
