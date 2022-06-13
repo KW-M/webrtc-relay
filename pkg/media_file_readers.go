@@ -2,9 +2,11 @@ package webrtc_relay
 
 import (
 	"errors"
+	"io"
 	"time"
 
 	"github.com/pion/webrtc/v3/pkg/media"
+	"github.com/pion/webrtc/v3/pkg/media/h264reader"
 	"github.com/pion/webrtc/v3/pkg/media/ivfreader"
 	"github.com/pion/webrtc/v3/pkg/media/oggreader"
 	log "github.com/sirupsen/logrus"
@@ -13,12 +15,12 @@ import (
 ///https://github.com/edaniels/gostream/blob/master/codec/x264/encoder.go
 // https://github.com/pion/mediadevices/blob/08a396571f87ee2888fc855964a5442f2a163879/track.go#L314
 
-func read_h264(pipe *NamedPipeMediaSource) error {
+func read_h264_file(pipe *NamedPipeMediaSource) error {
 
 	// NAIVE IMPLEMENTATION:
-	return read_raw_stream(pipe, 4096, h264FrameDuration)
+	// return read_raw_stream(pipe, 4096, h264FrameDuration)
 
-	// SMARTER IMPLEMENTATION (MAYBE):
+	// SMARTER IMPLEMENTATION:
 	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/src/main.go
 	// Send our video a frame at a time. Pace our sending so we send it at the same speed it should be played back as.
 	// This isn't required since the video is timestamped, but we will such much higher loss if we send all at once.
@@ -27,50 +29,48 @@ func read_h264(pipe *NamedPipeMediaSource) error {
 	// * avoids accumulating skew, just calling time.Sleep didn't compensate for the time spent parsing the data
 	// * works around latency issues with Sleep (see https://github.com/golang/go/issues/44343)
 
-	// h264, h264Err := h264reader.NewReader(pipe.pipeFile)
-	// if h264Err != nil {
-	// 	log.Error("h264reader Initilization Error", h264Err)
-	// 	pipe.exitReadLoopSignal.TriggerWithError(h264Err)
-	// 	return
-	// }
+	h264, h264Err := h264reader.NewReader(pipe.pipeFile)
+	if h264Err != nil {
+		log.Error("h264reader Initilization Error", h264Err)
+		return h264Err
+	}
 
-	// spsAndPpsCache := []byte{}
-	// ticker := time.NewTicker(h264FrameDuration)
-	// for {
-	// 	select {
-	// 	case <-pipe.exitReadLoopSignal.GetSignal():
-	// 		return
-	// 	case <-ticker.C:
-	// 		nal, h264Err := h264.NextNAL()
-	// 		if h264Err == io.EOF {
-	// 			log.Println("All video frames parsed and sent")
-	// 			// pipe.exitReadLoopSignal.Trigger()
-	// 			// return
-	// 			continue
-	// 		} else if h264Err != nil {
-	// 			log.Error("h264reader Decode Error: ", h264Err)
-	// 			pipe.exitReadLoopSignal.TriggerWithError(h264Err)
-	// 			return
-	// 		}
-	// 		nal.Data = append([]byte{0x00, 0x00, 0x00, 0x01}, nal.Data...)
+	spsAndPpsCache := []byte{}
+	ticker := time.NewTicker(h264FrameDuration)
+	for {
+		select {
+		case <-pipe.exitSignal.GetSignal():
+			return nil
+		case <-ticker.C:
+			nal, h264Err := h264.NextNAL()
+			if h264Err == io.EOF {
+				log.Println("All video frames parsed and sent")
+				// pipe.exitReadLoopSignal.Trigger()
+				// return
+				continue
+			} else if h264Err != nil {
+				log.Error("h264reader Decode Error: ", h264Err)
+				return h264Err
+			}
+			nal.Data = append([]byte{0x00, 0x00, 0x00, 0x01}, nal.Data...)
 
-	// 		if nal.UnitType == h264reader.NalUnitTypeSPS || nal.UnitType == h264reader.NalUnitTypePPS {
-	// 			spsAndPpsCache = append(spsAndPpsCache, nal.Data...)
-	// 			continue
-	// 		} else if nal.UnitType == h264reader.NalUnitTypeCodedSliceIdr {
-	// 			nal.Data = append(spsAndPpsCache, nal.Data...)
-	// 			spsAndPpsCache = []byte{}
-	// 		}
+			if nal.UnitType == h264reader.NalUnitTypeSPS || nal.UnitType == h264reader.NalUnitTypePPS {
+				spsAndPpsCache = append(spsAndPpsCache, nal.Data...)
+				continue
+			} else if nal.UnitType == h264reader.NalUnitTypeCodedSliceIdr {
+				nal.Data = append(spsAndPpsCache, nal.Data...)
+				spsAndPpsCache = []byte{}
+			}
 
-	// 		if err := pipe.WebrtcTrack.WriteSample(media.Sample{Data: nal.Data, Duration: time.Second}); err != nil {
-	// 			log.Println("Error writing h264 video track sample: ", err)
-	// 		}
-	// 	}
-	// }
+			if err := pipe.WebrtcTrack.WriteSample(media.Sample{Data: nal.Data, Duration: time.Second}); err != nil {
+				log.Println("Error writing h264 video track sample: ", err)
+			}
+		}
+	}
 
 }
 
-func read_ivf(pipe *NamedPipeMediaSource) error {
+func read_ivf_file(pipe *NamedPipeMediaSource) error {
 
 	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/src/main.go
 	// Send our video a frame at a time. Pace our sending so we send it at the same speed it should be played back as.
@@ -88,19 +88,40 @@ func read_ivf(pipe *NamedPipeMediaSource) error {
 	return errors.New("IVF READER NOT IMPLEMENTED")
 }
 
-func read_ogg(pipe *NamedPipeMediaSource) error {
+func read_ogg_file(pipe *NamedPipeMediaSource) error {
 
 	// only works with opus codec in the ogg container
 	// https://github.com/pion/webrtc/issues/2181
-	oggReader, oggHeader, oggErr := oggreader.NewWith(pipe.pipeFile)
+	oggReader, _, oggErr := oggreader.NewWith(pipe.pipeFile)
 	if oggErr != nil {
 		return errors.New("oggReader Initilization Error: " + oggErr.Error())
 	}
-	print(oggReader, oggHeader)
-	return errors.New("OGG READER NOT IMPLEMENTED")
+
+	ticker := time.NewTicker(33 * time.Millisecond)
+	for {
+		select {
+		case <-pipe.exitSignal.GetSignal():
+			return nil
+		case <-ticker.C:
+			oggPageBytes, _, Err := oggReader.ParseNextPage()
+			if Err == io.EOF {
+				log.Println("All video frames parsed and sent")
+				// pipe.exitReadLoopSignal.Trigger()
+				// return
+				continue
+			} else if Err != nil {
+				log.Error("oggreader Decode Error: ", Err)
+				return Err
+			}
+
+			if err := pipe.WebrtcTrack.WriteSample(media.Sample{Data: oggPageBytes, Duration: time.Second}); err != nil {
+				log.Println("Error writing h264 video track sample: ", err)
+			}
+		}
+	}
 }
 
-func read_raw_stream(pipe *NamedPipeMediaSource, readBufferSize int, readInterval time.Duration) error {
+func read_file_raw_stream(pipe *NamedPipeMediaSource, readBufferSize int, readInterval time.Duration) error {
 	// just keeps reading the named pipe bytes at a set intervals and pushing them onto the webrtc track
 	tmpReadBuf := make([]byte, readBufferSize)
 	ticker := time.NewTicker(readInterval)

@@ -61,26 +61,23 @@ async def start_test_pattern_video_stream(peer_id_to_video_call):
         "Action":
         "Media_Call_Peer",
         "Params": [
-            "This_is_the_track_id", "video/h264",
-            "test_pattern_video_stream.pipe"
+            "This_is_the_track_id",
+            "video/H264",  #"video/VP8", specify vp8 mime time to use VP8 video codec instead of H264
+            "udp://127.0.0.1:1222",
         ]
     })
     await duplex_relay.write_message(outgoing_msg_metadata)
 
-    # wait a bit for the relay to create the named pipe before we push the video stream into the named pipe
+    # wait a bit for the relay to start listening on the udp port:
     await asyncio.sleep(0.2)
 
-    # Next start piping the output of this ffmpeg command (generates a test pattern as h264 encoded video) to the named pipe,
+    # use ffmpeg to send a test pattern video stream to the relay in h264 encoded video format:
     # NOTE that this requires the ffmpeg command to be installed and in the PATH
-    video_cmd = Command_Output_To_Named_Pipe(
-        pipe_file_path=RELAY_NAMED_PIPES_FOLDER +
-        'test_pattern_video_stream.pipe',
-        command_string=
-        'ffmpeg -hide_banner -f lavfi -re  -rtbufsize 1M -use_wallclock_as_timestamps 1 -i "testsrc=size=1280x720:rate=30" -pix_fmt yuv420p -framerate 30  -vcodec libx264  -use_wallclock_as_timestamps 1 -preset ultrafast  -profile:v high  -fflags nobuffer -b:v 900k -f h264 -y pipe:1',
-        create_pipe=False)
-    # await video_cmd.start_cmd()
-    #'ffmpeg -f avfoundation -pix_fmt nv12 -video_size 640x480 -use_wallclock_as_timestamps 1 -framerate 30 -i default -f h264 pipe:1',
-    #ffmpeg -hide_banner -f lavfi -rtbufsize 1M -use_wallclock_as_timestamps 1 -i "testsrc=size=1280x720:rate=30" -r 30 -vcodec libx264 -preset "ultrafast" -tune zerolatency  -use_wallclock_as_timestamps 1 -fflags nobuffer -b:v 200k -f h264 -y pipe:1
+    run_cmd_string(
+        "ffmpeg -re -f lavfi -i testsrc=size=640x480:rate=30 -pix_fmt yuv420p -c:v libx264 -g 10 -preset ultrafast -tune zerolatency -f rtp 'rtp://127.0.0.1:1222?pkt_size=1200'"
+    )
+    # alternatively use vp8 encoding (seems to run slower when run from python, not sure why):
+    # "ffmpeg -hide_banner -re -f lavfi -i 'testsrc=size=640x480:rate=30' -vcodec libvpx -cpu-used 5 -deadline 1 -g 10 -error-resilient 1 -auto-alt-ref 1 -use_wallclock_as_timestamps 1 -fflags nobuffer -b:v 900k -pix_fmt yuv420p  -y -f rtp 'rtp://127.0.0.1:1222?pkt_size=1200'"
 
 
 #

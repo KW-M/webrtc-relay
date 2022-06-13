@@ -5,7 +5,13 @@ import (
 	"strings"
 
 	peerjs "github.com/muka/peerjs-go"
+	webrtc "github.com/pion/webrtc/v3"
 )
+
+type MediaSource interface {
+	GetTrack() *webrtc.TrackLocalStaticSample
+	StartMediaStream() float64
+}
 
 func generateMessageMetadataForBackend(srcPeerId string, peerEvent string, err string) string {
 	var metadata = new(DatachannelToRelayPipeMetadata)
@@ -84,7 +90,7 @@ func handleStartMediaStreamMsg(metaData RelayPipeToDatachannelMetadata, conn *We
 
 	streamName := metaData.Params[0]
 	mimeType := metaData.Params[1]
-	pipeName := metaData.Params[2]
+	sourcePath := metaData.Params[2]
 
 	// exit if the relay peer hasn't been initialized yet
 	if conn.CurrentRelayPeer == nil {
@@ -92,29 +98,42 @@ func handleStartMediaStreamMsg(metaData RelayPipeToDatachannelMetadata, conn *We
 		return
 	}
 
-	// create the named pipe to accept the encoded media stream bytes
-	mediaSrc, err := CreateNamedPipeMediaSource(conn.Relay.config.NamedPipeFolder+pipeName, 10000, h264FrameDuration, mimeType, streamName)
-	if err != nil {
-		log.Error("Error creating named pipe media source: ", err)
-		return
+	sourceParts := strings.Split(sourcePath, "/")
+	if sourceParts[0] == "udp:" {
+		ipAndPort := sourceParts[2]
+		mediaSrc, err := CreateRtpMediaSource(ipAndPort, 10000, h264FrameDuration, mimeType, streamName)
+		if err != nil {
+			log.Error("Error creating named pipe media source: ", err)
+			return
+		}
+
+		runFunctionForTargetPeers(metaData.TargetPeerIds, conn, func(targetPeerId string, dataConn *peerjs.DataConnection) {
+			_, err := conn.CurrentRelayPeer.Call(targetPeerId, mediaSrc.GetTrack(), peerjs.NewConnectionOptions())
+			if err != nil {
+				log.Error("Error media calling client peer: ", targetPeerId)
+			}
+		})
+		// start relaying bytes from the udp rtp to the webrtc media channel
+		go mediaSrc.StartMediaStream()
+	} else {
+		// create the named pipe to accept the encoded media stream bytes
+		mediaSrc, err := CreateNamedPipeMediaSource(conn.Relay.config.NamedPipeFolder+sourcePath, 10000, h264FrameDuration, mimeType, streamName)
+		if err != nil {
+			log.Error("Error creating named pipe media source: ", err)
+			return
+		}
+		runFunctionForTargetPeers(metaData.TargetPeerIds, conn, func(targetPeerId string, dataConn *peerjs.DataConnection) {
+			_, err := conn.CurrentRelayPeer.Call(targetPeerId, mediaSrc.GetTrack(), peerjs.NewConnectionOptions())
+			if err != nil {
+				log.Error("Error media calling client peer: ", targetPeerId)
+			}
+		})
+		// start relaying bytes from the named pipe to the webrtc media channel
+		go mediaSrc.StartMediaStream()
 	}
 
-	// initVideoTrack()
-	// pipeVideoToStream(conn.Relay.stopRelaySignal)
-	// targetPeerId := metaData.TargetPeerIds[0]
-
-	// log.Debug("Video calling to peer: ", targetPeerId)
-
 	// call all of the target peer ids:
-	runFunctionForTargetPeers(metaData.TargetPeerIds, conn, func(targetPeerId string, dataConn *peerjs.DataConnection) {
-		_, err := conn.CurrentRelayPeer.Call(targetPeerId, mediaSrc.WebrtcTrack, peerjs.NewConnectionOptions())
-		if err != nil {
-			log.Error("Error media calling client peer: ", targetPeerId)
-		}
-	})
 
-	// start relaying bytes from the named pipe to the webrtc media channel
-	go mediaSrc.StartMediaStream()
 }
 
 func handleStopMediaStreamMsg(metadata RelayPipeToDatachannelMetadata, conn *WebrtcConnectionCtrl) {

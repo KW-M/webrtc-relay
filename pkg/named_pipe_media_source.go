@@ -57,6 +57,10 @@ func (pipe *NamedPipeMediaSource) Close() {
 	}
 }
 
+func (pipe *NamedPipeMediaSource) GetTrack() *webrtc.TrackLocalStaticSample {
+	return pipe.WebrtcTrack
+}
+
 //https://stackoverflow.com/questions/41739837/all-mime-types-supported-by-mediarecorder-in-firefox-and-chrome
 func (pipe *NamedPipeMediaSource) StartMediaStream() error {
 	defer pipe.Close()
@@ -80,7 +84,7 @@ func (pipe *NamedPipeMediaSource) StartMediaStream() error {
 		// 	err = read_ogg(pipe)
 		// } else {
 		log.Debug("Unknow Media Source MimeType: " + mimeType + " sending raw stream as fallback")
-		err = read_raw_stream(pipe, pipe.readBufferSize, pipe.readInterval)
+		err = read_file_raw_stream(pipe, pipe.readBufferSize, pipe.readInterval)
 
 		// }
 
