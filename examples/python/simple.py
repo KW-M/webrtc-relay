@@ -20,16 +20,16 @@ async def read_messages(duplex_relay):
         # seperate the metadata part of the message from the actual message from the browser:
         msg_parts = raw_message.split(RELAY_MSG_METADATA_SEPARATOR)
 
-        # check if the message from the browser is the "start video stream" message:
+        # check if the message from the browser is the "begin_video_stream" message:
         if (len(msg_parts) > 1):
             metadata = msg_parts[0]
             msg = msg_parts[1]
-            if (msg == "start video stream"):
+            if (msg == "begin_video_stream"):
                 print(
-                    "PYTHON: Got \"start video stream\" message from browser, now telling the relay to video call the peer that sent the message"
+                    "PYTHON: Got \"begin_video_stream\" message from browser, now telling the relay to video call the peer that sent the message"
                 )
 
-                # get the SrcPeerId from the message metadata (the peer id of the sender of the start video stream message):
+                # get the SrcPeerId from the message metadata (the peer id of the sender of the begin_video_stream message):
                 metadata = json.loads(metadata)
                 if "SrcPeerId" in metadata:
                     await start_test_pattern_video_stream(metadata["SrcPeerId"]

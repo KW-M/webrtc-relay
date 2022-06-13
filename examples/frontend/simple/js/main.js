@@ -60,7 +60,7 @@ startVideoButton.addEventListener('click', () => {
         alert("No Open Datachannel");
     } else {
         // tell the PYTHON backend to start the video:
-        relayDatachannel.send(messageEncoder.encode("start video stream"));
+        relayDatachannel.send(messageEncoder.encode("begin_video_stream"));
     }
 });
 
