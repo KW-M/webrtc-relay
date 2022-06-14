@@ -11,6 +11,9 @@ RELAY_MSG_METADATA_SEPARATOR = "|\"|"
 THIS_PYTHON_EXAMPLES_FOLDER = pathlib.Path(
     __file__).parent.resolve().as_posix()
 
+# keeps track of the ffmpeg media tracks we have spawned, to show that we can have multiple media streams or send the same media stream to multiple peers:
+ffmpegProcessies = []
+
 
 async def read_messages(duplex_relay):
     while True:
@@ -54,6 +57,17 @@ async def send_messages(duplex_relay):
 
 
 async def start_test_pattern_video_stream(peer_id_to_video_call):
+    global ffmpegProcessies
+
+    # Use ffmpeg to send a test pattern video stream to the relay in h264 encoded video format:
+    # NOTE that this requires the ffmpeg command to be installed and in the PATH
+    if len(ffmpegProcessies) < 2:
+        ffmpegProcessies.append(
+            run_cmd_string(
+                "ffmpeg -re -f lavfi -i testsrc=size=640x480:rate=30 -pix_fmt yuv420p -c:v libx264 -g 10 -preset ultrafast -tune zerolatency -f rtp 'rtp://127.0.0.1:182"
+                + str(len(ffmpegProcessies)) + "?pkt_size=1200'"))
+        # alternatively replace the run_cmd_string line above with this use vp8 encoding (seems to run slower when run from python, not sure why):
+        # run_cmd_string(  "ffmpeg -re -f lavfi -i testsrc=size=640x480:rate=30 -pix_fmt yuv420p -c:v libx264 -g 10 -preset ultrafast -tune zerolatency -f rtp 'rtp://127.0.0.1:122"  + str(len(ffmpegProcessies)) + "?pkt_size=1200'")
 
     # make a metadata-only message to tell the relay to create a new named pipe for acceping video bytes and then media call the given peer id with that media stream:
     outgoing_msg_metadata = json.dumps({
@@ -61,26 +75,16 @@ async def start_test_pattern_video_stream(peer_id_to_video_call):
         "Action":
         "Media_Call_Peer",
         "Params": [
-            "This_is_the_track_id",
+            "This_is_trackid_" + str(len(ffmpegProcessies) - 1),
             "video/H264",  #"video/VP8", specify vp8 mime time to use VP8 video codec instead of H264
-            "udp://127.0.0.1:1222",
+            "udp://127.0.0.1:182" + str(len(ffmpegProcessies) - 1),
         ]
     })
+
+    # send the message to the relay:
     await duplex_relay.write_message(outgoing_msg_metadata)
 
-    # wait a bit for the relay to start listening on the udp port:
-    await asyncio.sleep(0.2)
 
-    # use ffmpeg to send a test pattern video stream to the relay in h264 encoded video format:
-    # NOTE that this requires the ffmpeg command to be installed and in the PATH
-    run_cmd_string(
-        "ffmpeg -re -f lavfi -i testsrc=size=640x480:rate=30 -pix_fmt yuv420p -c:v libx264 -g 10 -preset ultrafast -tune zerolatency -f rtp 'rtp://127.0.0.1:1222?pkt_size=1200'"
-    )
-    # alternatively use vp8 encoding (seems to run slower when run from python, not sure why):
-    # "ffmpeg -hide_banner -re -f lavfi -i 'testsrc=size=640x480:rate=30' -vcodec libvpx -cpu-used 5 -deadline 1 -g 10 -error-resilient 1 -auto-alt-ref 1 -use_wallclock_as_timestamps 1 -fflags nobuffer -b:v 900k -pix_fmt yuv420p  -y -f rtp 'rtp://127.0.0.1:1222?pkt_size=1200'"
-
-
-#
 ######## Main Program ###########
 ######################################
 async def main():

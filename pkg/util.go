@@ -17,6 +17,31 @@ func contains(s []string, str string) bool {
 	return false
 }
 
+/* removeMatching (UNTESTED)
+ * removes all elements from a slice that match elements from another slice
+ * PARAM a: the slice to remove elements from
+ * PARAM b: the slice of match elements to remove from a
+ * RETURNS: the slice a with all matching elements removed
+ */
+func removeMatching(a []string, b []string) []string {
+	newMap := map[string]bool{}
+
+	// mask the elements in b with a map
+	for _, value := range b {
+		newMap[value] = true
+	}
+
+	//
+	output := make([]string, 0)
+	for _, value := range a {
+		if _, exists := newMap[value]; !exists {
+			output = append(output, value)
+		}
+	}
+
+	return output
+}
+
 /* UnblockSignal
  * simple wrapper around a go channel to make it easier to block a goroutine from continuing and then let it continue when Trigger() is called
  * EXAMPLE USE: exiting a goroutine when some error happens in another goroutine

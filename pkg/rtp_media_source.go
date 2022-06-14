@@ -42,7 +42,7 @@ func CreateRtpMediaSource(url string, readBufferSize int, readInterval time.Dura
 
 	rtpSrc.log.Print("Creating RTP Media Source ", rtpSrc.udpAddress.String())
 
-	track, err := webrtc.NewTrackLocalStaticRTP(webrtc.RTPCodecCapability{MimeType: mediaMimeType}, trackName, trackName+"-stream")
+	track, err := webrtc.NewTrackLocalStaticRTP(webrtc.RTPCodecCapability{MimeType: mediaMimeType}, trackName, "main-stream")
 	if err != nil {
 		rtpSrc.log.Error("Failed to create webrtc track: ", err)
 		return nil, err
@@ -61,18 +61,16 @@ func (rtpSrc *RtpMediaSource) Close() {
 	}
 }
 
-func (pipe *RtpMediaSource) GetTrack() *webrtc.TrackLocalStaticRTP {
-	return pipe.WebrtcTrack
+func (rtpSrc *RtpMediaSource) GetTrack() *webrtc.TrackLocalStaticRTP {
+	return rtpSrc.WebrtcTrack
 }
 
 //https://stackoverflow.com/questions/41739837/all-mime-types-supported-by-mediarecorder-in-firefox-and-chrome
 func (rtpSrc *RtpMediaSource) StartMediaStream() error {
 	defer rtpSrc.Close()
-	rtpSrc.log.Warn("Starting Media Stream")
 	for {
 
 		// Open a UDP Listener for RTP Packets
-
 		listener, err := net.ListenUDP("udp", rtpSrc.udpAddress)
 		if err != nil {
 			rtpSrc.log.Error("Error opening media source rtp:", err)

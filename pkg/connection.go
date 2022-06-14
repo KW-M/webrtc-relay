@@ -9,6 +9,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type MediaTrackData struct {
+	Track       *peerjs.MediaStreamTrack // the media track
+	MediaSource *RtpMediaSource          // the source handler of the media track
+	// ConsumerPeerIds []string                 // list of peer ids that are reciving this stream through a media channel
+}
+
 // WebrtcConnectionCtrl: This is the main controller in charge of maintaining an open peer and accepting/connecting to other peers.
 // While the fields here are public, they are NOT meant to be modified by the user, do so at your own risk.
 type WebrtcConnectionCtrl struct {
@@ -20,8 +26,12 @@ type WebrtcConnectionCtrl struct {
 	RelayPeerIdEndingNum int
 	// the current peer object associated with this WebrtcConnectionCtrl:
 	CurrentRelayPeer *peerjs.Peer
-	// map off all open peer datachannels connected to this relay (key is the peerId of the client)
+	// map of all open peer datachannels connected to this relay (key is the peerId of the client)
 	ActiveDataConnectionsToThisRelay map[string]*peerjs.DataConnection
+	// map of all open peer mediachannels connected to this relay (key is the peerId of the client)
+	ActiveMediaConnectionsToThisRelay map[string]*peerjs.MediaConnection
+	// map of media streams being broadcast to this relay (key is the stream name)
+	MediaSources map[string]*RtpMediaSource
 	// the log for this WebrtcConnectionCtrl
 	log *log.Entry
 }
@@ -29,6 +39,7 @@ type WebrtcConnectionCtrl struct {
 func CreateWebrtcConnectionCtrl(relay *WebrtcRelay) *WebrtcConnectionCtrl {
 	return &WebrtcConnectionCtrl{
 		Relay:                            relay,
+		MediaSources:                     make(map[string]*RtpMediaSource),
 		ActiveDataConnectionsToThisRelay: make(map[string]*peerjs.DataConnection),
 		CurrentRelayPeer:                 nil, // &peerjs.Peer{}  nil equivalent of the peerjs.Peer struct
 		log:                              relay.Log.WithFields(log.Fields{"src": "WebrtcConnectionCtrl"}),
