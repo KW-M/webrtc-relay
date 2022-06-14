@@ -21,7 +21,7 @@ Behind the scenes, this tool uses the [Pion WebRTC](https://github.com/pion/webr
 
    > **NOTE** on some linux distros like RaspberryPi os, apt ships an old version of go, so I recommend installing the latest version from the [Go website](https://go.dev/dl) - [Tutorial](https://www.jeremymorgan.com/tutorials/raspberry-pi/install-go-raspberry-pi)
 
-2. In a terminal run: **`git clone github.com/kw-m/webrtc-relay.git`**,
+2. In a terminal run: **`git clone https://github.com/kw-m/webrtc-relay.git`**,
 3. **`cd webrtc-relay`** into the folder
 4. Run **`go install .`**
    > This should give you an executable called `webrtc-relay` in the folder `<your home folder>/go/bin/` (or wherever $GOPATH is set to).

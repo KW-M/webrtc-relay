@@ -201,7 +201,7 @@ func handleMessageFromBackend(message string, conn *WebrtcConnectionCtrl) {
 			if dataConn != nil {
 				dataConn.Send(actualMsgBytes, false)
 			} else {
-				log.Error("Error sending message to peer: " + targetPeerId + " Err: " + err.Error())
+				log.Error("Error sending message to peer: " + targetPeerId + " Datachannel Not Open ")
 			}
 		})
 	}

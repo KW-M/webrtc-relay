@@ -51,7 +51,7 @@ func (conn *WebrtcConnectionCtrl) GetPeerId() string {
 }
 
 func (conn *WebrtcConnectionCtrl) GetActiveDataConnection(peerid string) *peerjs.DataConnection {
-	if dataConn, found := conn.ActiveDataConnectionsToThisRelay[peerid]; found {
+	if dataConn, found := conn.ActiveDataConnectionsToThisRelay[peerid+"::"+conn.Relay.config.PeerInitConfigs[0].Host]; found {
 		return dataConn
 	} else {
 		return nil
