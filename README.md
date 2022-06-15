@@ -34,7 +34,7 @@ Behind the scenes, this tool uses the [Pion WebRTC](https://github.com/pion/webr
    > **NOTE:** The python examples start the relay (run this command) as part of the example code.
 2. See the [examples/python](examples/python) for a simple python interface as well as example webrtc-relay-config.json files.
 3. Basic idea for sending messages to/from browsers through the webrtc data channel:
-   1. The relay will create two named pipe files in the "NamedPipeFolder" (specified in your webrtc-relay-config.json) named "from_datachannel_relay.pipe" and "to_datachannel_relay.pipe"
+   1. The relay will create two named pipe files in the "NamedPipeFolder" (specified in your webrtc-relay-config.json) named "from_webrtc_relay.pipe" and "to_webrtc_relay.pipe"
    2. Your program can open these pipe and read/write to them like normal files.
       > **Warning** Opening named pipes for writing without an aready open reader will block your program and/or the relay, so make sure to let relay open and create all named pipes before opening both the "to" and "from" named pipe in your program.
    3. Each browser should connect to the relay peer id using peer JS.

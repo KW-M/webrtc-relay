@@ -67,8 +67,8 @@ func (relay *WebrtcRelay) Start() {
 
 	if relay.config.CreateDatachannelNamedPipes {
 		// Create the two named pipes to send and receive data to / from the webrtc-relay user's backend code
-		var toDcPipePath string = config.NamedPipeFolder + "to_datachannel_relay.pipe"
-		var fromDcPipePath string = config.NamedPipeFolder + "from_datachannel_relay.pipe"
+		var toDcPipePath string = config.NamedPipeFolder + "to_webrtc_relay.pipe"
+		var fromDcPipePath string = config.NamedPipeFolder + "from_webrtc_relay.pipe"
 		relay.Log.Debug("Making Named pipes: " + toDcPipePath + " & " + fromDcPipePath)
 		var msgPipe, err = CreateDuplexNamedPipeRelay(toDcPipePath, fromDcPipePath, 0666, 3)
 		if err != nil {

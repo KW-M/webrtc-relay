@@ -99,8 +99,8 @@ async def main():
 
     # Configure the named pipes to communicate with the webrtc-relay (ie: send/recive datachannel messages):
     duplex_relay = Duplex_Named_Pipe_Relay(
-        RELAY_NAMED_PIPES_FOLDER + 'from_datachannel_relay.pipe',
-        RELAY_NAMED_PIPES_FOLDER + 'to_datachannel_relay.pipe',
+        RELAY_NAMED_PIPES_FOLDER + 'from_webrtc_relay.pipe',
+        RELAY_NAMED_PIPES_FOLDER + 'to_webrtc_relay.pipe',
         create_pipes=True)
 
     # Setup the asyncio loop to run each of these async functions aka "tasks" aka "coroutines" concurently
