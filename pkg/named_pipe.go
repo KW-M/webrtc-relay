@@ -94,7 +94,8 @@ openloop:
 	for {
 
 		var err error
-		pipe.pipeFile, err = os.OpenFile(pipe.pipeFilePath, pipe.pipeFileOpenMode, os.ModeNamedPipe|fs.FileMode(pipe.pipeFilePermissions))
+		//https://medium.com/@cpuguy83/non-blocking-i-o-in-go-bc4651e3ac8d
+		pipe.pipeFile, err = os.OpenFile(pipe.pipeFilePath, os.O_RDWR|syscall.O_CLOEXEC|syscall.O_NONBLOCK, os.ModeNamedPipe|fs.FileMode(pipe.pipeFilePermissions))
 		if err != nil {
 			pipe.log.Error("Error opening named pipe:", err)
 			<-time.After(time.Second)

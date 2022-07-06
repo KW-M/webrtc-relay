@@ -1,4 +1,5 @@
 import asyncio, logging, os, shlex, subprocess
+import errno
 
 ############################
 ###### setup logging #######
@@ -25,17 +26,32 @@ class Named_Pipe:
             else:
                 # Wait for the named pipe to be created (by some other program)
                 while not os.path.exists(self.pipe_file_path):
+                    print("wait" + self.pipe_file_path)
                     await asyncio.sleep(timeout)
 
             try:
 
                 if mode == 'r':
-                    self.pipe_file = os.open(self.pipe_file_path, os.O_RDONLY)
-                    return self.pipe_file
+                    try:
+                        self.pipe_file = os.open(self.pipe_file_path,
+                                                 os.O_RDWR | os.O_NONBLOCK)
+                        return self.pipe_file
+                    except OSError as ex:
+                        if ex.errno == errno.ENXIO:
+                            print(
+                                "Err opening pipe file: Pipe is not yet readable."
+                                + self.pipe_file_path)
 
                 elif mode == 'w':
-                    self.pipe_file = os.open(self.pipe_file_path, os.O_WRONLY)
-                    return self.pipe_file
+                    try:
+                        self.pipe_file = os.open(self.pipe_file_path,
+                                                 os.O_RDWR | os.O_NONBLOCK)
+                        return self.pipe_file
+                    except OSError as ex:
+                        if ex.errno == errno.ENXIO:
+                            print(
+                                "Err opening pipe file: Pipe is not yet writeable."
+                                + self.pipe_file_path)
 
                 else:
                     raise ValueError('mode must be "r" or "w"')
