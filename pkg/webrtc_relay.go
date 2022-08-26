@@ -57,7 +57,7 @@ func (relay *WebrtcRelay) Start() {
 
 	defer func() {
 		if r := recover(); r != nil {
-			relay.Log.Println("Recovered from panic, stopping webrtc-relay...", r)
+			relay.Log.Println("Panicked in main, stopping webrtc-relay...", r)
 			relay.stopRelaySignal.Trigger()
 		}
 	}()

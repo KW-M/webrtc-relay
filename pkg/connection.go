@@ -47,7 +47,11 @@ func CreateWebrtcConnectionCtrl(relay *WebrtcRelay) *WebrtcConnectionCtrl {
 }
 
 func (conn *WebrtcConnectionCtrl) GetPeerId() string {
-	return conn.Relay.config.BasePeerId + strconv.Itoa(conn.RelayPeerIdEndingNum)
+	if conn.Relay.config.useMemorableName == true {
+		return conn.Relay.config.BasePeerId + getDailyName(uint64(conn.RelayPeerIdEndingNum))
+	} else {
+		return conn.Relay.config.BasePeerId + strconv.Itoa(conn.RelayPeerIdEndingNum)
+	}
 }
 
 func (conn *WebrtcConnectionCtrl) GetActiveDataConnection(peerid string) *peerjs.DataConnection {
