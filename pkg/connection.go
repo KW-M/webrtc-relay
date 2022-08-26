@@ -1,6 +1,7 @@
 package webrtc_relay
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -46,8 +47,9 @@ func CreateWebrtcConnectionCtrl(relay *WebrtcRelay) *WebrtcConnectionCtrl {
 	}
 }
 
-func (conn *WebrtcConnectionCtrl) GetPeerId() string {
-	if conn.Relay.config.useMemorableName == true {
+func (conn *WebrtcConnectionCtrl) GetRelayPeerId() string {
+	log.Infof("UseMemorablePeerIds: %t", conn.Relay.config.UseMemorablePeerIds)
+	if conn.Relay.config.UseMemorablePeerIds {
 		return conn.Relay.config.BasePeerId + getDailyName(uint64(conn.RelayPeerIdEndingNum))
 	} else {
 		return conn.Relay.config.BasePeerId + strconv.Itoa(conn.RelayPeerIdEndingNum)
@@ -269,15 +271,15 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(clientPeerDataConnec
 func (conn *WebrtcConnectionCtrl) setupRelayPeer(peerOptions *peerjs.Options, stopRelaySignal *UnblockSignal) error {
 	exitFuncSignal := NewUnblockSignal()
 
-	log.Info("Setting up connection to peerjs server: " + peerOptions.Host + peerOptions.Path + ":" + strconv.Itoa(peerOptions.Port))
-
-	var relayPeerId string = conn.GetPeerId()
+	var relayPeerId string = conn.GetRelayPeerId()
 
 	// setup logrus logger
 	relayConnLog := log.WithFields(log.Fields{"peer": relayPeerId, "peerServer": peerOptions.Host})
 
 	// establish peer with peerjs server
 	var relayPeer, err = peerjs.NewPeer(relayPeerId, *peerOptions)
+	log.Info("Setting up connection to peerjs server: " + peerOptions.Host + ":" + strconv.Itoa(peerOptions.Port) + peerOptions.Path)
+	fmt.Printf("relayPeer.GetSocket(): %v\n", relayPeer.GetSocket())
 	defer func() { // func to run when setupWebrtcConnection function exits (either normally or because of a panic)
 		if relayPeer != nil && !relayPeer.GetDestroyed() {
 			relayPeer.Close() // close this peer (including peer server connection)

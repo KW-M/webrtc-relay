@@ -39,5 +39,5 @@ func getDailyName(offset uint64) string {
 	offset = Max(uint64(1), offset+1)
 	adjective := adjectives[(offset+dayOfYear)%uint64(len(adjectives))]
 	noun := nouns[(offset*dayOfYear)%uint64(len(nouns))]
-	return adjective + " " + noun
+	return adjective + "-" + noun
 }

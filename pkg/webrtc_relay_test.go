@@ -83,14 +83,14 @@ func TestMsgRelay(t *testing.T) {
 
 	clientPeer.On("open", func(id interface{}) {
 		clientId := id.(string)
-		println("Client Peer Open: ", clientId, " (Client) now connecting to ", relay.ConnCtrl.GetPeerId(), " (Relay)")
+		println("Client Peer Open: ", clientId, " (Client) now connecting to ", relay.ConnCtrl.GetRelayPeerId(), " (Relay)")
 
 		sendingMessages := [...]string{
 			"from relay to client_msg1",
 			"from relay to client_msg2",
 		}
 
-		dataConn, err := clientPeer.Connect(relay.ConnCtrl.GetPeerId(), peer.NewConnectionOptions())
+		dataConn, err := clientPeer.Connect(relay.ConnCtrl.GetRelayPeerId(), peer.NewConnectionOptions())
 		assert.NoError(t, err)
 		assert.NotNil(t, dataConn)
 		dataConn.On("open", func(none interface{}) {

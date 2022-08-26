@@ -70,7 +70,7 @@ type WebrtcRelayConfig struct {
 
 	// Use a longer but more memorable name in place of the ending number to distiguish webrtc-relay peer ids (name is deterministically based on the end number and day of the year, see uid_generation.go).
 	// Default: false
-	useMemorableName bool
+	UseMemorablePeerIds bool
 
 	// The folder path (w trailing slash) where the named pipes should be created to act as a relay for messages and media streams sent from your prefered programming language (eg: python)
 	// Default: "/tmp/webtrc-relay-pipes/"

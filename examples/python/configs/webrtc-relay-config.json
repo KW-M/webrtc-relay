@@ -1,6 +1,7 @@
 {
     "LogLevel": "debug",
     "BasePeerId": "go-relay-",
+    "UseMemorablePeerIds": false,
     "NamedPipeFolder": "./webrtc-relay-pipes/",
     "MessageMetadataSeparator": "|\"|",
     "AddMetadataToMessages": true,
