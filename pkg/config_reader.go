@@ -69,7 +69,7 @@ func GetDefaultRelayConfig() WebrtcRelayConfig {
 		CreateDatachannelNamedPipes:    true,
 		MessageDelimiter:               "\n",
 		MessageMetadataSeparator:       "|\"|", // intentionally an invalid json string
-		AddMetadataToPipeMessages:      true,
+		AddMetadataToBackendMessages:   true,
 	}
 }
 

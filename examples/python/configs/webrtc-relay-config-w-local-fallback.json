@@ -4,7 +4,7 @@
     "UseMemorablePeerIds": true,
     "NamedPipeFolder": "/tmp/webrtc-relay-pipes/",
     "MessageMetadataSeparator": "|\"|",
-    "AddMetadataToMessages": true,
+    "AddMetadataToBackendMessages": true,
     "PeerInitConfigs": [
         {
             "Host": "0.peerjs.com",

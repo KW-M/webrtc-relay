@@ -91,14 +91,14 @@ type WebrtcRelayConfig struct {
 
 	// if true, when a datachannel message is recived or a peer connects, metadata like the sender's peer id will be prepended to all message as json before being sent to the named pipe.
 	// if true, the webrtc-relay will expect json to be prepended to messages comming back from the named pipe in the same format (json metadata, then seperator, then message)
-	AddMetadataToPipeMessages bool
+	AddMetadataToBackendMessages bool
 
 	// LogLevel: The log verbosity to use for the webrtc-relay. Must be one of: critical, error, warn, info, debug. (debug is most verbose)
 	// Default: "warn"
 	LogLevel string
 }
 
-// DatachannelToRelayPipeMetadata is prepended (as a JSON string) to messages sent to your program through the named pipe message relay (when AddMetadataToPipeMessages config is True)
+// DatachannelToRelayPipeMetadata is prepended (as a JSON string) to messages sent to your program through the named pipe message relay (when AddMetadataToBackendMessages config is True)
 type DatachannelToRelayPipeMetadata struct {
 
 	// PeerId is the peerjs ID of the sender browser peer.
@@ -109,7 +109,7 @@ type DatachannelToRelayPipeMetadata struct {
 	Err string `json:"Err,omitempty"`
 }
 
-// RelayPipeToDatachannelMetadata is what is expected to be prepended (as JSON followed by the MessageMetadataSeparator string) to messages recived from your program through the named pipe message relay (when AddMetadataToPipeMessages config is True)
+// RelayPipeToDatachannelMetadata is what is expected to be prepended (as JSON followed by the MessageMetadataSeparator string) to messages recived from your program through the named pipe message relay (when AddMetadataToBackendMessages config is True)
 type RelayPipeToDatachannelMetadata struct {
 
 	// TargetPeerIds is the list of peerjs peers (by peer id) this mesage should be sent to. An empty list means broadcast mesage to all connected peers.

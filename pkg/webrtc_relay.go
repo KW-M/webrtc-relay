@@ -10,10 +10,10 @@ type WebrtcRelay struct {
 	// Log: The logrus logger to use for debug logs within WebrtcRelay Code
 	Log *log.Entry
 	// RelayInputMessageChannel: Push a message onto this channel to send that message to any or all open datachannels (ie: to the client(s))
-	// NOTE: mesages sent are expected to have metadata json & separtor string before the actual message (if config.AddMetadataToPipeMessages is true)
+	// NOTE: mesages sent are expected to have metadata json & separtor string before the actual message (if config.AddMetadataToBackendMessages is true)
 	RelayInputMessageChannel chan string
 	// RelayOutputMessageChannel: Whenever a message is recived from any open datachannel, it is pushed onto this channel.
-	// NOTE: messages from this channel will contain prepended metadata json & separtor string before the actual message (if config.AddMetadataToPipeMessages is true)
+	// NOTE: messages from this channel will contain prepended metadata json & separtor string before the actual message (if config.AddMetadataToBackendMessages is true)
 	RelayOutputMessageChannel chan string
 	// ConnCtrl: The connection controller to use for this webrtcRelay
 	ConnCtrl *WebrtcConnectionCtrl

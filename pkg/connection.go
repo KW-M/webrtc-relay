@@ -74,7 +74,7 @@ func (conn *WebrtcConnectionCtrl) SendMessageToBackend(message string) {
 
 /* forwards the passed message string (coming from the client/browser via the datachannel) to the backend (named pipe or go code) */
 func (conn *WebrtcConnectionCtrl) handleIncomingDatachannelMessage(message string, relayPeer *peerjs.Peer, clientPeerId string, clientPeerDataConnection *peerjs.DataConnection, log *log.Entry) {
-	if conn.Relay.config.AddMetadataToPipeMessages {
+	if conn.Relay.config.AddMetadataToBackendMessages {
 		var metadata string = generateMessageMetadataForBackend(clientPeerId, "", "")
 		message = metadata + conn.Relay.config.MessageMetadataSeparator + message
 	}
@@ -216,7 +216,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(clientPeerDataConnec
 		conn.ActiveDataConnectionsToThisRelay[clientPeerId+"::"+peerServerOpts.Host] = clientPeerDataConnection
 
 		// send a metadata message down the named message pipe that a new peer has connected
-		if conn.Relay.config.AddMetadataToPipeMessages {
+		if conn.Relay.config.AddMetadataToBackendMessages {
 			msg := generateMessageMetadataForBackend(clientPeerId, "Connected", "")
 			conn.SendMessageToBackend(msg)
 		}
@@ -235,7 +235,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(clientPeerDataConnec
 		delete(conn.ActiveDataConnectionsToThisRelay, clientPeerId+"::"+peerServerOpts.Host) // remove this connection from the map of active connections
 
 		// send a metadata message down the named message pipe that this peer connection has been closed
-		if conn.Relay.config.AddMetadataToPipeMessages {
+		if conn.Relay.config.AddMetadataToBackendMessages {
 			msg := generateMessageMetadataForBackend(clientPeerId, "Closed", "")
 			conn.SendMessageToBackend(msg)
 		}
@@ -245,7 +245,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(clientPeerDataConnec
 		log.Info("CLIENT PEER DATACHANNEL DISCONNECTED EVENT", message)
 
 		// send a metadata message down the named message pipe that this peer has disconnected
-		if conn.Relay.config.AddMetadataToPipeMessages {
+		if conn.Relay.config.AddMetadataToBackendMessages {
 			msg := generateMessageMetadataForBackend(clientPeerId, "Disconnected", "")
 			conn.SendMessageToBackend(msg)
 		}
@@ -254,7 +254,7 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(clientPeerDataConnec
 	clientPeerDataConnection.On("error", func(message interface{}) {
 		errMessage := message.(error).Error()
 		log.Error("CLIENT PEER DATACHANNEL ERROR EVENT: ", errMessage)
-		if conn.Relay.config.AddMetadataToPipeMessages {
+		if conn.Relay.config.AddMetadataToBackendMessages {
 			msg := generateMessageMetadataForBackend(clientPeerId, "Error", errMessage)
 			conn.SendMessageToBackend(msg)
 		}
