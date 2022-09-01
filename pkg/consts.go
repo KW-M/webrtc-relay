@@ -68,9 +68,13 @@ type WebrtcRelayConfig struct {
 	// Default: 0
 	initialRelayPeerIdEndingNumber int
 
-	// Use a longer but more memorable name in place of the ending number to distiguish webrtc-relay peer ids (name is deterministically based on the end number and day of the year, see uid_generation.go).
+	// Use a longer but more memorable name in place of the ending number to distiguish webrtc-relay peer ids (name is deterministically based on the end number and MemorablePeerIdOffset, see uid_generation.go).
 	// Default: false
 	UseMemorablePeerIds bool
+
+	// if UseMemorablePeerIds is true, this number rotates the name indecies for a given peer end number to make name collisions even less likely. Choose any random number that fits in the positive int range.
+	// Default: 0
+	MemorablePeerIdOffset uint
 
 	// The folder path (w trailing slash) where the named pipes should be created to act as a relay for messages and media streams sent from your prefered programming language (eg: python)
 	// Default: "/tmp/webtrc-relay-pipes/"
@@ -96,6 +100,10 @@ type WebrtcRelayConfig struct {
 	// LogLevel: The log verbosity to use for the webrtc-relay. Must be one of: critical, error, warn, info, debug. (debug is most verbose)
 	// Default: "warn"
 	LogLevel string
+
+	// IncludeMessagesInLogs: If true, messages sent and recived from the backend will be included in the logs, careful with using this in production.
+	// Default: "warn"
+	IncludeMessagesInLogs bool
 }
 
 // DatachannelToRelayPipeMetadata is prepended (as a JSON string) to messages sent to your program through the named pipe message relay (when AddMetadataToBackendMessages config is True)

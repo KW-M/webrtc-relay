@@ -64,6 +64,7 @@ func GetDefaultRelayConfig() WebrtcRelayConfig {
 		BasePeerId:                     "go-relay-",
 		initialRelayPeerIdEndingNumber: 0,
 		UseMemorablePeerIds:            false,
+		MemorablePeerIdOffset:          0,
 		PeerInitConfigs:                []*PeerInitOptions{&peerInitOpts},
 		NamedPipeFolder:                "/tmp/webtrc-relay-pipes/",
 		CreateDatachannelNamedPipes:    true,

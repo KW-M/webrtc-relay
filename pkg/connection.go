@@ -50,7 +50,7 @@ func CreateWebrtcConnectionCtrl(relay *WebrtcRelay) *WebrtcConnectionCtrl {
 func (conn *WebrtcConnectionCtrl) GetRelayPeerId() string {
 	log.Infof("UseMemorablePeerIds: %t", conn.Relay.config.UseMemorablePeerIds)
 	if conn.Relay.config.UseMemorablePeerIds {
-		return conn.Relay.config.BasePeerId + getDailyName(uint64(conn.RelayPeerIdEndingNum))
+		return conn.Relay.config.BasePeerId + getUniqueName(uint32(conn.RelayPeerIdEndingNum), uint32(conn.Relay.config.MemorablePeerIdOffset))
 	} else {
 		return conn.Relay.config.BasePeerId + strconv.Itoa(conn.RelayPeerIdEndingNum)
 	}

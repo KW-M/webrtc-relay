@@ -2,6 +2,7 @@
     "LogLevel": "info",
     "BasePeerId": "go-relay-",
     "UseMemorablePeerIds": true,
+    "MemorablePeerIdOffset": 0,
     "NamedPipeFolder": "/tmp/webrtc-relay-pipes/",
     "MessageMetadataSeparator": "|\"|",
     "AddMetadataToBackendMessages": true,
