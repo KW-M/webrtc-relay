@@ -81,8 +81,14 @@ func (relay *WebrtcRelay) Start() {
 			for {
 				select {
 				case msg := <-relay.RelayOutputMessageChannel:
+					if relay.config.IncludeMessagesInLogs {
+						relay.Log.Debug("RELAY->BKEND: ", msg)
+					}
 					msgPipe.SendMessageToPipe(msg)
 				case msg := <-msgPipe.MessagesFromPipeChannel:
+					if relay.config.IncludeMessagesInLogs {
+						relay.Log.Debug("BKEND->RELAY: ", msg)
+					}
 					relay.RelayInputMessageChannel <- msg
 				case <-relay.stopRelaySignal.GetSignal():
 					return

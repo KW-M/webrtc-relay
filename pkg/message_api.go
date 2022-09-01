@@ -47,7 +47,7 @@ func parseMessageMetadataFromBackend(message string, msgMetadataSeparator string
 }
 
 func runFunctionForTargetPeers(targetPeerIds []string, conn *WebrtcConnectionCtrl, funcToRun func(targetPeerId string, dataConn *peerjs.DataConnection)) {
-	if (len(targetPeerIds) == 0) || (targetPeerIds[0] == "*") {
+	if targetPeerIds[0] == "*" {
 		// If the action is meant for all peers, send it to all peers
 		for peerId, dataConn := range conn.ActiveDataConnectionsToThisRelay {
 			funcToRun(peerId, dataConn)

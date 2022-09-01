@@ -68,7 +68,7 @@ func (conn *WebrtcConnectionCtrl) SendMessageToBackend(message string) {
 	select {
 	case conn.Relay.RelayOutputMessageChannel <- message:
 	default:
-		conn.log.Error("SendMessageToBackend: Go channel is full! Msg:", message)
+		conn.log.Error("SendMessageToBackend: Go channel is full!")
 	}
 }
 
@@ -224,7 +224,6 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(clientPeerDataConnec
 		// handle incoming messages from this client peer
 		clientPeerDataConnection.On("data", func(msgBytes interface{}) {
 			var msgString string = string(msgBytes.([]byte))
-			log.Debug("clientDataConnection 🚘 GOT MESSAGE: ", msgString)
 			conn.handleIncomingDatachannelMessage(msgString, conn.CurrentRelayPeer, clientPeerId, clientPeerDataConnection, log)
 		})
 
