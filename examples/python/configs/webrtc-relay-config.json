@@ -3,6 +3,7 @@
     "BasePeerId": "go-relay-",
     "UseMemorablePeerIds": false,
     "MemorablePeerIdOffset": 0,
+    "IncludeMessagesInLogs": true,
     "NamedPipeFolder": "./webrtc-relay-pipes/",
     "MessageMetadataSeparator": "|\"|",
     "AddMetadataToBackendMessages": true,
@@ -15,7 +16,8 @@
             "Path": "/",
             "Key": "peerjs",
             "Secure": true,
-            "PingInterval": 3000
+            "PingInterval": 3000,
+            "Debug": 3
         }
     ]
 }

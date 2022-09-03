@@ -71,6 +71,7 @@ func GetDefaultRelayConfig() WebrtcRelayConfig {
 		MessageDelimiter:               "\n",
 		MessageMetadataSeparator:       "|\"|", // intentionally an invalid json string
 		AddMetadataToBackendMessages:   true,
+		IncludeMessagesInLogs:          false,
 	}
 }
 
