@@ -31,8 +31,14 @@ func parseMessageMetadataFromBackend(message string, msgMetadataSeparator string
 	// split the message into the metadata and the actual message
 	metaDataAndMessage := strings.SplitN(message, msgMetadataSeparator, 2)
 
+	// set default struct values
+	metaData := RelayPipeToDatachannelMetadata{
+		Action:        "",
+		Params:        []string{},
+		TargetPeerIds: []string{"*"},
+	}
+
 	// parse the metadata json string into the RelayPipeToDatachannelMetadata struct type
-	var metaData RelayPipeToDatachannelMetadata // empty struct
 	err := json.Unmarshal([]byte(metaDataAndMessage[0]), &metaData)
 	if err != nil {
 		return metaData, "", err
