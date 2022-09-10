@@ -45,9 +45,8 @@ async def read_messages(duplex_relay):
 async def send_messages(duplex_relay):
     while True:
 
-        outgoing_msg_metadata = json.dumps(
-            {"TargetPeers":
-             []})  # send this message to all connected peers (empty list)
+        # send this message to all connected peers (star symbol means all peers):
+        outgoing_msg_metadata = json.dumps({"TargetPeers": ["*"]})
         current_time = datetime.datetime.now().strftime("%H:%M:%S:%f")
         message = outgoing_msg_metadata + RELAY_MSG_METADATA_SEPARATOR + "The python time is now: " + current_time
 

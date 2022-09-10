@@ -50,6 +50,9 @@ type PeerInitOptions struct {
 	CleanupOutMsgs int
 }
 
+// TokenPersistanceFileJson is the json format of the token persistance file (see WebrtcRelayConfig.TokenPersistanceFile) where every key is a peer id this relay has recently had and the value is the corresponding token first sent when establishing this relay as peer on the peerjs server.
+type TokenPersistanceFileJson map[string]string
+
 // configuration for webrtc-relay
 type WebrtcRelayConfig struct {
 
@@ -75,6 +78,9 @@ type WebrtcRelayConfig struct {
 	// if UseMemorablePeerIds is true, this number rotates the name indecies for a given peer end number to make name collisions even less likely. Choose any random number that fits in the positive int range.
 	// Default: 0
 	MemorablePeerIdOffset uint
+
+	// File path to use for temporarilly storing the token used by peerjs server to verify this client (webrtc-relay) really is the peer id it says it is.
+	TokenPersistanceFile string
 
 	// The folder path (w trailing slash) where the named pipes should be created to act as a relay for messages and media streams sent from your prefered programming language (eg: python)
 	// Default: "/tmp/webtrc-relay-pipes/"

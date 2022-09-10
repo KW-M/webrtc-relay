@@ -33,6 +33,8 @@ type WebrtcConnectionCtrl struct {
 	ActiveMediaConnectionsToThisRelay map[string]*peerjs.MediaConnection
 	// map of media streams being broadcast to this relay (key is the stream name)
 	MediaSources map[string]*RtpMediaSource
+	// The (json) store used to keep peer server tokens between sessions
+	TokenStore *TokenPersistanceStore
 	// the log for this WebrtcConnectionCtrl
 	log *log.Entry
 }
@@ -43,6 +45,7 @@ func CreateWebrtcConnectionCtrl(relay *WebrtcRelay) *WebrtcConnectionCtrl {
 		MediaSources:                     make(map[string]*RtpMediaSource),
 		ActiveDataConnectionsToThisRelay: make(map[string]*peerjs.DataConnection),
 		CurrentRelayPeer:                 nil, // &peerjs.Peer{}  nil equivalent of the peerjs.Peer struct
+		TokenStore:                       NewTokenPersistanceStore(relay),
 		log:                              relay.Log.WithFields(log.Fields{"src": "WebrtcConnectionCtrl"}),
 	}
 }
@@ -180,6 +183,7 @@ func (conn *WebrtcConnectionCtrl) StartPeerServerConnectionLoop() {
 					errorType := e.Type
 					if errorType == "unavailable-id" {
 						log.Printf("Peer id is unavailable. Switching to next peer id end number...\n")
+						conn.TokenStore.DiscardToken(conn.GetRelayPeerId())
 						conn.RelayPeerIdEndingNum++ // increment the peer id ending integer
 					}
 					if errorType == "network" {
@@ -271,6 +275,7 @@ func (conn *WebrtcConnectionCtrl) setupRelayPeer(peerOptions *peerjs.Options, st
 	exitFuncSignal := NewUnblockSignal()
 
 	var relayPeerId string = conn.GetRelayPeerId()
+	peerOptions.Token = conn.TokenStore.GetToken(relayPeerId)
 
 	// setup logrus logger
 	relayConnLog := log.WithFields(log.Fields{"peer": relayPeerId, "peerServer": peerOptions.Host})
