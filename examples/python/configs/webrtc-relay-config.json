@@ -4,6 +4,7 @@
     "UseMemorablePeerIds": false,
     "MemorablePeerIdOffset": 0,
     "IncludeMessagesInLogs": true,
+    "TokenPersistanceFile": "./webrtc-relay-tokens.json",
     "NamedPipeFolder": "./webrtc-relay-pipes/",
     "MessageMetadataSeparator": "|\"|",
     "AddMetadataToBackendMessages": true,

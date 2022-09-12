@@ -114,6 +114,6 @@ func (tps *TokenPersistanceStore) GetToken(peerId string) string {
 		return token
 	}
 
-	tps.log.Debug("Found token for peerId: ", peerId, token)
-	return tps.newToken(peerId) //token
+	tps.log.Debugf("Found token for peer %s: %s", peerId, token)
+	return token
 }
