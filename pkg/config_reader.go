@@ -73,6 +73,8 @@ func GetDefaultRelayConfig() WebrtcRelayConfig {
 		MessageMetadataSeparator:       "|\"|", // intentionally an invalid json string
 		AddMetadataToBackendMessages:   true,
 		IncludeMessagesInLogs:          false,
+		LogLevel:                       "info",
+		GoProfilingServerEnabled:       false,
 	}
 }
 

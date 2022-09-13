@@ -110,6 +110,11 @@ type WebrtcRelayConfig struct {
 	// IncludeMessagesInLogs: If true, messages sent and recived from the backend will be included in the logs, careful with using this in production.
 	// Default: "warn"
 	IncludeMessagesInLogs bool
+
+	// Go Profiling Server Enabled: If true, the webrtc-relay will start a go pprof profiling server on port 6060, careful with using this in production.
+	// see: https://go.dev/blog/pprof
+	// Default: false
+	GoProfilingServerEnabled bool
 }
 
 // DatachannelToRelayPipeMetadata is prepended (as a JSON string) to messages sent to your program through the named pipe message relay (when AddMetadataToBackendMessages config is True)
