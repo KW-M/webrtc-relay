@@ -12,7 +12,7 @@ func read_raw_rtp_stream(rtpSource *RtpMediaSource) error {
 	for {
 		n, _, err := rtpSource.listener.ReadFrom(inboundRTPPacket)
 		if err != nil {
-			rtpSource.log.Errorf("error during read: %s", err)
+			rtpSource.log.Errorf("error during read: %s", err.Error())
 			return err
 		}
 
@@ -22,7 +22,7 @@ func read_raw_rtp_stream(rtpSource *RtpMediaSource) error {
 				rtpSource.log.Warn("PeerConnection closed")
 				return nil
 			} else {
-				rtpSource.log.Error(err)
+				rtpSource.log.Error(err.Error())
 				return err
 			}
 		}

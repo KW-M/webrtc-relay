@@ -41,7 +41,7 @@ func initVideoTrack() *webrtc.TrackLocalStaticSample {
 	var err error
 	cameraLivestreamVideoTrack, err = webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: "video/h264"}, "rov-front-cam", "rov-front-cam-stream")
 	if err != nil {
-		cameraLog.Fatal("could not create video track. ", err)
+		cameraLog.Fatal("could not create video track. ", err.Error())
 	}
 
 	return cameraLivestreamVideoTrack
@@ -91,7 +91,7 @@ func pipeVideoToStream(programShouldQuitSignal *UnblockSignal) error {
 	stdoutPipe, _ := cmd.StdoutPipe()
 	sderrPipe, err := cmd.StderrPipe()
 	if err != nil {
-		cameraLog.Fatal("could not create video stream cmd output pipes. ", err)
+		cameraLog.Fatal("could not create video stream cmd output pipes. ", err.Error())
 	}
 
 	// print out the stderr output of the command in a seperate go routine
@@ -105,7 +105,7 @@ func pipeVideoToStream(programShouldQuitSignal *UnblockSignal) error {
 
 	// Create a new video track from the h264 reader
 	if err := cmd.Start(); err != nil {
-		cameraLog.Printf("[camera-stream-cmd][CMD START ERROR] > %s\n", err)
+		cameraLog.Printf("[camera-stream-cmd][CMD START ERROR] > %s\n", err.Error())
 		return err
 	}
 
@@ -114,7 +114,7 @@ func pipeVideoToStream(programShouldQuitSignal *UnblockSignal) error {
 	// ------------------------------
 	// stdoutPipe, err := os.OpenFile(config.NamedPipeFolder+"vid.pipe", os.O_RDWR, os.ModeNamedPipe|0666)
 	// if err != nil {
-	// 	log.Error("Error opening named pipe:", err)
+	// 	log.Error("Error opening named pipe:", err.Error())
 	// 	return nil
 	// }
 	//------------------------------

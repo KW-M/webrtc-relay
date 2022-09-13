@@ -33,7 +33,7 @@ func CreateNamedPipeMediaSource(pipeFilePath string, readBufferSize int, readInt
 
 	track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: mediaMimeType}, trackName, trackName+"-stream")
 	if err != nil {
-		pipe.log.Error("Failed to create webrtc track: ", err)
+		pipe.log.Error("Failed to create webrtc track: ", err.Error())
 		return nil, err
 	}
 	pipe.WebrtcTrack = track
@@ -42,7 +42,7 @@ func CreateNamedPipeMediaSource(pipeFilePath string, readBufferSize int, readInt
 	if _, err := os.Stat(pipeFilePath); err != nil {
 		err := syscall.Mkfifo(pipeFilePath, 0666)
 		if err != nil {
-			pipe.log.Error("Make named pipe file error:", err)
+			pipe.log.Error("Make named pipe file error:", err.Error())
 			return nil, err
 		}
 	}
@@ -70,7 +70,7 @@ func (pipe *NamedPipeMediaSource) StartMediaStream() error {
 		var err error = nil
 		pipe.pipeFile, err = os.OpenFile(pipe.pipeFilePath, os.O_RDONLY, os.ModeNamedPipe|0666)
 		if err != nil {
-			pipe.log.Error("Error opening media source named pipe:", err)
+			pipe.log.Error("Error opening media source named pipe:", err.Error())
 			<-time.After(time.Second)
 			continue
 		}
@@ -89,7 +89,7 @@ func (pipe *NamedPipeMediaSource) StartMediaStream() error {
 		// }
 
 		if err != nil {
-			pipe.log.Error("Error reading media source:", err)
+			pipe.log.Error("Error reading media source:", err.Error())
 			continue
 		}
 

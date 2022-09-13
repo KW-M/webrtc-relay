@@ -28,7 +28,7 @@ func NewRtpMediaSource(url string, readBufferSize int, readInterval time.Duratio
 	ip := net.ParseIP(addrParts[0])
 	port, err := strconv.Atoi(addrParts[1])
 	if err != nil {
-		logger.Error("Error parsing rtp url:", err)
+		logger.Error("Error parsing rtp url:", err.Error())
 		return nil, err
 	}
 	var rtpSrc = RtpMediaSource{
@@ -73,7 +73,7 @@ func (rtpSrc *RtpMediaSource) StartMediaStream() error {
 		// Open a UDP Listener for RTP Packets
 		listener, err := net.ListenUDP("udp", rtpSrc.udpAddress)
 		if err != nil {
-			rtpSrc.log.Error("Error opening media source rtp:", err)
+			rtpSrc.log.Error("Error opening media source rtp:", err.Error())
 			<-time.After(time.Second)
 			continue
 		}
@@ -98,7 +98,7 @@ func (rtpSrc *RtpMediaSource) StartMediaStream() error {
 		}
 
 		if err != nil {
-			rtpSrc.log.Error("Error reading media source:", err)
+			rtpSrc.log.Error("Error reading media source:", err.Error())
 			continue
 		}
 

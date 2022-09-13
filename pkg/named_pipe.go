@@ -40,7 +40,7 @@ func CreateNamedPipeRelay(pipeFilePath string, pipeFilePermissions uint32, pipeO
 	if _, err := os.Stat(pipeFilePath); err != nil {
 		err := syscall.Mkfifo(pipeFilePath, pipeFilePermissions)
 		if err != nil {
-			pipe.log.Error("Create named pipe file error:", err)
+			pipe.log.Error("Create named pipe file error:", err.Error())
 			return nil, err
 		}
 	}
@@ -67,7 +67,7 @@ func (pipe *NamedPipeRelay) SendBytesToPipe(bytes []byte) {
 		_, err := pipe.pipeFile.Write(bytes)
 		if err != nil {
 			pipe.lastErr = err
-			pipe.log.Error("Error writing bytes to pipe:", err)
+			pipe.log.Error("Error writing bytes to pipe:", err.Error())
 		}
 	} else {
 		pipe.log.Error("SendBytesToPipe() called when pipe file was not open or not writable")
@@ -80,7 +80,7 @@ func (pipe *NamedPipeRelay) SendMessageToPipe(msg string) {
 		_, err := pipe.pipeFile.WriteString(msg + "\n")
 		if err != nil {
 			pipe.lastErr = err
-			pipe.log.Error("Error writing message to pipe:", err)
+			pipe.log.Error("Error writing message to pipe:", err.Error())
 		}
 	} else {
 		pipe.log.Error("SendMessageToPipe() called when pipe file was not open or not writable")
@@ -97,7 +97,7 @@ openloop:
 		//https://medium.com/@cpuguy83/non-blocking-i-o-in-go-bc4651e3ac8d
 		pipe.pipeFile, err = os.OpenFile(pipe.pipeFilePath, os.O_RDWR|syscall.O_CLOEXEC|syscall.O_NONBLOCK, os.ModeNamedPipe|fs.FileMode(pipe.pipeFilePermissions))
 		if err != nil {
-			pipe.log.Error("Error opening named pipe:", err)
+			pipe.log.Error("Error opening named pipe:", err.Error())
 			<-time.After(time.Second)
 			continue
 		}
@@ -111,7 +111,7 @@ openloop:
 					pipe.log.Debug("pipe exit: ")
 					return nil
 				} else if err := scanner.Err(); err != nil {
-					pipe.log.Printf("Error reading message from pipe: %v", err)
+					pipe.log.Printf("Error reading message from pipe: %v", err.Error())
 					pipe.lastErr = err
 					continue openloop
 				}
@@ -143,13 +143,13 @@ func CreateDuplexNamedPipeRelay(incomingPipeFilePath string, outgoingPipeFilePat
 	var err error
 	duplexPipe.incomingPipe, err = CreateNamedPipeRelay(incomingPipeFilePath, pipeFilePermissions, os.O_RDONLY, readChannelBufferCount)
 	if err != nil {
-		duplexPipe.log.Error("Error creating incoming pipe:", err)
+		duplexPipe.log.Error("Error creating incoming pipe:", err.Error())
 		return nil, err
 	}
 
 	duplexPipe.outgoingPipe, err = CreateNamedPipeRelay(outgoingPipeFilePath, pipeFilePermissions, os.O_WRONLY, readChannelBufferCount)
 	if err != nil {
-		duplexPipe.log.Error("Error creating outgoing pipe:", err)
+		duplexPipe.log.Error("Error creating outgoing pipe:", err.Error())
 		return nil, err
 	}
 

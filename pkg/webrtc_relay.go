@@ -31,7 +31,7 @@ func CreateWebrtcRelay(config WebrtcRelayConfig) *WebrtcRelay {
 	var lo *log.Entry = log.WithField("mod", "webrtc-relay")
 	level, err := StringToLogLevel(config.LogLevel)
 	if err != nil {
-		lo.Warn(err)
+		lo.Warn(err.Error())
 	}
 	lo.Logger.SetLevel(level)
 	lo.Logger.SetFormatter(&log.TextFormatter{
@@ -72,7 +72,7 @@ func (relay *WebrtcRelay) Start() {
 		relay.Log.Debug("Making Named pipes: " + toDcPipePath + " & " + fromDcPipePath)
 		var msgPipe, err = CreateDuplexNamedPipeRelay(toDcPipePath, fromDcPipePath, 0666, 3)
 		if err != nil {
-			relay.Log.Fatal("Failed to create message relay named pipe: ", err)
+			relay.Log.Fatal("Failed to create message relay named pipe: ", err.Error())
 		}
 		defer msgPipe.Close()
 

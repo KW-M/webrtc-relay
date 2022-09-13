@@ -118,7 +118,7 @@ func (conn *WebrtcConnectionCtrl) sendMessageToBackend(message string) {
 	select {
 	case conn.Relay.RelayOutputMessageChannel <- message:
 	default:
-		conn.log.Error("sendMessageToBackend: Go channel is full!")
+		conn.log.Warn("sendMessageToBackend: Go channel is full!")
 	}
 }
 

@@ -166,7 +166,7 @@ func (p *RelayPeer) createPeer() error {
 
 	p.peer.On("error", func(err interface{}) {
 		pErr := err.(peerjs.PeerError)
-		p.log.Error("Peer error", pErr)
+		p.log.Errorf("Peer error (type %s): %s", pErr.Type, pErr.Error())
 		if pErr.Type == "unavailable-id" {
 			p.connCtrl.TokenStore.DiscardToken(p.peerId + "|" + p.peerConfig.Host)
 			p.peerIdEndingNum++
@@ -229,7 +229,7 @@ func (p *RelayPeer) onDisconnected() {
 	err := p.peer.Reconnect()
 	if err != nil {
 		p.expBackoffErrorCount += 1
-		log.Error("ERROR RECONNECTING TO DISCONNECTED PEER SERVER: ", err)
+		log.Error("ERROR RECONNECTING TO DISCONNECTED PEER SERVER: ", err.Error())
 		p.recreatePeer()
 	} else {
 		p.onReconnecting()

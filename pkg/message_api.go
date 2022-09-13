@@ -161,7 +161,7 @@ func handleStartMediaStreamMsg(metaData RelayPipeToDatachannelMetadata, conn *We
 		ipAndPort := sourceParts[2]
 		mediaSrc, err := NewRtpMediaSource(ipAndPort, 10000, h264FrameDuration, mimeType, trackName)
 		if err != nil {
-			log.Error("Error creating named pipe media source: ", err)
+			log.Error("Error creating named pipe media source: ", err.Error())
 			return
 		}
 

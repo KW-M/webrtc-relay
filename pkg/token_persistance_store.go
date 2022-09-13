@@ -34,7 +34,7 @@ func (tps *TokenPersistanceStore) GetToken(peerId string) string {
 		tps.log.Debug("TokenMap is empty, reading from file")
 		err := tps.readJsonStore()
 		if err != nil {
-			tps.log.Error("Error reading token persistance store file (store file will be overwritten): ", err)
+			tps.log.Error("Error reading token persistance store file (store file will be overwritten): ", err.Error())
 			return tps.newToken(peerId)
 		}
 	}
