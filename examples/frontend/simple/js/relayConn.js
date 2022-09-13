@@ -9,17 +9,11 @@ function cleanupConnection() {
     thisPeer = null
 }
 
-function connectToRelay(relayPeerId, connectionOpenCallback, connectionFailedCallback) {
+function connectToRelay(relayPeerId, peerjsOptions, connectionOpenCallback, connectionFailedCallback) {
 
     // Create the peerjs peer for this browser. You can pass a set peerid as the first argument, null will give us a random unique one.
     console.info("Creating Peer...");
-    thisPeer = new Peer(null, {
-        host: '0.peerjs.com',
-        secure: true,
-        path: '/',
-        port: 443,
-        key: 'peerjs',
-    });
+    thisPeer = new Peer(null, peerjsOptions);
 
     // This event is called when the peer server to acknowledge that it knows about us and give us a unique peer id.
     thisPeer.on('open', (realPeerId) => {

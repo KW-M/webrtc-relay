@@ -4,8 +4,15 @@ const peerServerCloudOptions = {
     secure: true,
     path: '/',
     port: 443,
+    key: 'peerjs',
 }
 
-// for converting text to/from binary for messages sent/received through the webrtc datachannel
-const messageEncoder = new TextEncoder(); // always utf-8
-const messageDecoder = new TextDecoder(); // always utf-8
+
+// For Connecting to the Peer Server run by the Relay Locally (if you have the relay running with a startLocalServer config set to true (see the golang peerServerFallbacks example))
+const localPeerServerOptions = {
+    host: '127.0.0.1',
+    secure: false,
+    path: '/',
+    port: 9000,
+    key: 'peerjs',
+}

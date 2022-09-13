@@ -10,6 +10,7 @@ func main() {
 
 	// create a new config for the webrtc-relay, see pkg/consts.go for available options
 	config := webrtc_relay.GetDefaultRelayConfig()
+	config.CreateDatachannelNamedPipes = false // we don't need named pipes because this example is entirely in golang (also named pipes will compete with our for loop to read messages)
 
 	// create and start the relay
 	relay := webrtc_relay.CreateWebrtcRelay(config)
@@ -22,7 +23,7 @@ func main() {
 		ticker := time.NewTicker(time.Second * 1)
 		for {
 			<-ticker.C // wait for ticker to trigger and then send the message
-			relay.RelayInputMessageChannel <- "{ TargetPeers: [] }|\"|Hello World! Time=" + time.Now().String()
+			relay.RelayInputMessageChannel <- "{ \"TargetPeers\": [\"*\"] }|\"|Hello World! Time=" + time.Now().String()
 		}
 	}()
 

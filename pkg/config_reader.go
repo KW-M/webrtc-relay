@@ -18,7 +18,7 @@ func GetPeerjsCloudPeerInitOptions() PeerInitOptions {
 		Port:         443,
 		PingInterval: 5000,
 		Path:         "/",
-		Secure:       false,
+		Secure:       true,
 		Configuration: webrtc.Configuration{
 			ICEServers: []webrtc.ICEServer{{
 				URLs: []string{"stun:stun.l.google.com:19302"},
@@ -26,7 +26,6 @@ func GetPeerjsCloudPeerInitOptions() PeerInitOptions {
 			SDPSemantics: webrtc.SDPSemanticsUnifiedPlan,
 		},
 		Debug:            2,
-		Token:            "",
 		RetryCount:       2,
 		StartLocalServer: false,
 	}
@@ -35,13 +34,12 @@ func GetPeerjsCloudPeerInitOptions() PeerInitOptions {
 func GetLocalServerPeerInitOptions() PeerInitOptions {
 	return PeerInitOptions{
 		Key:          "peerjs",
-		Host:         "localhost",
+		Host:         "127.0.0.1",
 		Port:         9000,
 		PingInterval: 5000,
 		Path:         "/",
 		Secure:       false,
 		Debug:        2,
-		Token:        "",
 		RetryCount:   2,
 		Configuration: webrtc.Configuration{
 			ICEServers:   []webrtc.ICEServer{},
@@ -73,6 +71,7 @@ func GetDefaultRelayConfig() WebrtcRelayConfig {
 		MessageMetadataSeparator:       "|\"|", // intentionally an invalid json string
 		AddMetadataToBackendMessages:   true,
 		IncludeMessagesInLogs:          false,
+		LogLevel:                       "info",
 	}
 }
 

@@ -10,14 +10,15 @@ func main() {
 
 	// create a new config for the webrtc-relay, see pkg/consts.go for available options
 	config := webrtc_relay.GetDefaultRelayConfig()
+	config.CreateDatachannelNamedPipes = false // we don't need named pipes because this example is entirely in golang (also named pipes will compete with our loop to read messages)
 
 	// set up the options that will be used to connect to the peerjs server
 	cloudPeerServerOptions := webrtc_relay.GetPeerjsCloudPeerInitOptions()
 	localPeerServerOptions := webrtc_relay.GetLocalServerPeerInitOptions()
 	localPeerServerOptions.Port = 9001 // change the port the local peer server will run on. You can change any of the other PeerInitOptions too (before creating the peer relay).
 
-	// set the peer init configs in the order they should be tried:
-	// if connecting to the peer server specified in the first one fails, the second one will be tried, and so on.
+	// set the peer init configs in the order they should start up:
+	// each RelayPeer with a unique hostname option should run concurrently and all datachannel messages will be routed to the correct client peer through whichever RelayPeer(s) that client peer is connected to.
 	config.PeerInitConfigs = []*webrtc_relay.PeerInitOptions{
 		&cloudPeerServerOptions,
 		&localPeerServerOptions,
@@ -34,7 +35,7 @@ func main() {
 		ticker := time.NewTicker(time.Second * 1)
 		for {
 			<-ticker.C // wait for ticker to trigger and then send the message
-			relay.RelayInputMessageChannel <- "{ TargetPeers: [] }|\"|Hello World! Time=" + time.Now().String()
+			relay.RelayInputMessageChannel <- "{ \"TargetPeers\": [\"*\"] }|\"|Hello World! Time=" + time.Now().String()
 		}
 	}()
 

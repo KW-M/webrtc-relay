@@ -135,7 +135,7 @@ func (p *RelayPeer) GetRelayPeerId() string {
 
 func (p *RelayPeer) createPeer() error {
 	var err error = nil
-	p.peerConfig.Token = p.connCtrl.TokenStore.GetToken(p.peerId + "-" + p.peerConfig.Host)
+	p.peerConfig.Token = p.connCtrl.TokenStore.GetToken(p.peerId + "|" + p.peerConfig.Host)
 	p.peer, err = peerjs.NewPeer(p.peerId, p.peerConfig)
 	if err != nil {
 		p.expBackoffErrorCount += 1
@@ -168,7 +168,7 @@ func (p *RelayPeer) createPeer() error {
 		pErr := err.(peerjs.PeerError)
 		p.log.Error("Peer error", pErr)
 		if pErr.Type == "unavailable-id" {
-			p.connCtrl.TokenStore.DiscardToken(p.peerId + "-" + p.peerConfig.Host)
+			p.connCtrl.TokenStore.DiscardToken(p.peerId + "|" + p.peerConfig.Host)
 			p.peerIdEndingNum++
 			p.peerId = p.GetRelayPeerId()
 			p.log.Info("Peer id unavailable, trying new id: ", p.peerId)

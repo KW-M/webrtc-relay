@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Peerjs Relay Simple Frontend</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="description" content="">
+    <meta name="author" content="">
+</head>
+
+
+<body>
+    <h1>Peerjs Cloud - Webrtc-Relay Simple Frontend</h1>
+    <button id="connect_btn">Click to connect</button>
+    <button id="start_video_btn" disabled>Start video stream</button>
+    <br>
+
+    <!-- Include the peerjs library -->
+    <script src="js/peerjs.min.js"></script>
+    <!-- Example scripts (in order of dependency) -->
+    <script src="js/relayConn.js"></script>
+    <script src="js/constants.js"></script>
+    <script>
+        // see contstants.js
+        const PEERJS_CONNECTION_OPTIONS = peerServerCloudOptions;
+    </script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>

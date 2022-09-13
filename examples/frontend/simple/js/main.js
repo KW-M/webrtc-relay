@@ -4,6 +4,10 @@ const messageDecoder = new TextDecoder(); // always utf-8
 var messagePingIntervalId = null
 var relayWebrtcDatachannel = null
 
+
+// !!!! ------ set this somewhere in your code (see where it is used below): -------!!!!!
+// const PEERJS_CONNECTION_OPTIONS = peerServerCloudOptions;
+
 // setup callback function that will be setup to run when the connection to the relay is open:
 // see the connectToRelay() function
 var relayConectionOpenCallback = function (relayDatachannel) {
@@ -50,7 +54,7 @@ connectButton.addEventListener('click', () => {
     // disable the connect button:
     connectButton.disabled = true
     // connect to the relay passing the callbacks defined above:
-    connectToRelay(relayPeerId, relayConectionOpenCallback, relayConectionFailedCallback)
+    connectToRelay(relayPeerId, PEERJS_CONNECTION_OPTIONS, relayConectionOpenCallback, relayConectionFailedCallback)
 });
 
 // Setup the start video button

@@ -18,20 +18,16 @@ type PeerInitOptions struct {
 	Path string
 	//Secure true if you're using SSL.
 	Secure bool
-	//Configuration hash passed to RTCPeerConnection. This hash contains any custom ICE/TURN server configuration. Defaults to { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }], 'sdpSemantics': 'unified-plan' }
+	//Configuration struct passed to pion RTCPeerConnection. This contains any custom ICE/TURN server configuration. Defaults to { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }], 'sdpSemantics': 'unified-plan' }
 	Configuration webrtc.Configuration
-	// Debug
-	// Prints log messages depending on the debug level passed in. Defaults to 0.
+	// Debug: Prints log messages depending on the debug level passed in. Defaults to 0.
 	// 0 Prints no logs.
 	// 1 Prints only errors.
 	// 2 Prints errors and warnings.
-	// 3 Prints all logs.
+	// 3 Prints all logs (verbose).
 	Debug int8
-	//Token a string to group peers
-	Token string
 	// Retry Count of times to retry connecting to this peer server before moving on to the next peer server in the PeerInitOptions list.
 	RetryCount int
-
 	// -------------------------
 	// StartLocalServer - if true, the peerjs-go module will start a local peerjs Server with the same config, and then connect to it.
 	StartLocalServer bool
@@ -49,9 +45,6 @@ type PeerInitOptions struct {
 	// (local peerjs server only) How long the outgoing server websocket message queue can grow before dropping messages.
 	CleanupOutMsgs int
 }
-
-// TokenPersistanceFileJson is the json format of the token persistance file (see WebrtcRelayConfig.TokenPersistanceFile) where every key is a peer id this relay has recently had and the value is the corresponding token first sent when establishing this relay as peer on the peerjs server.
-type TokenPersistanceFileJson map[string]string
 
 // configuration for webrtc-relay
 type WebrtcRelayConfig struct {
@@ -111,6 +104,9 @@ type WebrtcRelayConfig struct {
 	// Default: "warn"
 	IncludeMessagesInLogs bool
 }
+
+// TokenPersistanceFileJson is the json format of the token persistance file (see WebrtcRelayConfig.TokenPersistanceFile) where every key is a peer id this relay has recently had and the value is the corresponding token first sent when establishing this relay as peer on the peerjs server.
+type TokenPersistanceFileJson map[string]string
 
 // DatachannelToRelayPipeMetadata is prepended (as a JSON string) to messages sent to your program through the named pipe message relay (when AddMetadataToBackendMessages config is True)
 type DatachannelToRelayPipeMetadata struct {

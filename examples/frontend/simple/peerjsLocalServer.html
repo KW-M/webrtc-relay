@@ -12,7 +12,7 @@
 
 
 <body>
-    <h1>Peerjs Relay Simple Frontend</h1>
+    <h1>Peerjs Cloud - Webrtc-Relay Simple Frontend</h1>
     <button id="connect_btn">Click to connect</button>
     <button id="start_video_btn" disabled>Start video stream</button>
     <br>
@@ -21,6 +21,14 @@
     <script src="js/peerjs.min.js"></script>
     <!-- Example scripts (in order of dependency) -->
     <script src="js/relayConn.js"></script>
+    <script src="js/constants.js"></script>
+    <script>
+        // see contstants.js
+        const PEERJS_CONNECTION_OPTIONS = localPeerServerOptions;
+        if (!window.location.host.includes("127.0.0.1")) {
+            alert("You must use a local web server and access this page at 127.0.0.1 (localhost ip) for it to work.");
+        }
+    </script>
     <script src="js/main.js"></script>
 </body>
 
