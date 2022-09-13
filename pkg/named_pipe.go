@@ -108,6 +108,7 @@ openloop:
 			scanner := bufio.NewScanner(pipe.pipeFile)
 			for scanner.Scan() {
 				if pipe.exitSignal.HasTriggered {
+					pipe.log.Debug("pipe exit: ")
 					return nil
 				} else if err := scanner.Err(); err != nil {
 					pipe.log.Printf("Error reading message from pipe: %v", err)
@@ -115,6 +116,7 @@ openloop:
 					continue openloop
 				}
 				msg := scanner.Text()
+				pipe.log.Debug("Message received from pipe: ", msg)
 				pipe.MessagesFromPipeChannel <- msg
 			}
 		}

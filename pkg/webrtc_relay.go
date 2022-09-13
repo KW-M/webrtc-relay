@@ -57,7 +57,7 @@ func (relay *WebrtcRelay) Start() {
 
 	defer func() {
 		if r := recover(); r != nil {
-			relay.Log.Println("Panicked in main, stopping webrtc-relay...", r)
+			relay.Log.Println("Panicked in Start(), stopping webrtc-relay...", r)
 			relay.stopRelaySignal.Trigger()
 		}
 	}()
@@ -89,7 +89,7 @@ func (relay *WebrtcRelay) Start() {
 					if relay.config.IncludeMessagesInLogs {
 						relay.Log.Debug("BKEND->RELAY: ", msg)
 					}
-					relay.RelayInputMessageChannel <- msg
+					// relay.RelayInputMessageChannel <- msg
 				case <-relay.stopRelaySignal.GetSignal():
 					return
 				}
