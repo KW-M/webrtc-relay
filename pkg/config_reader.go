@@ -72,6 +72,7 @@ func GetDefaultRelayConfig() WebrtcRelayConfig {
 		AddMetadataToBackendMessages:   true,
 		IncludeMessagesInLogs:          false,
 		LogLevel:                       "info",
+		GoProfilingServerEnabled:       false,
 	}
 }
 

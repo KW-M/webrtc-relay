@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +11,8 @@ import (
 	relayLib "github.com/kw-m/webrtc-relay/pkg"
 
 	log "github.com/sirupsen/logrus"
+
+	_ "net/http/pprof"
 )
 
 // command line flag placeholder variables
@@ -35,6 +38,12 @@ func main() {
 	// Create a simple boolean "channel" that we can use to signal to go subroutine functions that they should stop cleanly:
 	programShouldQuitSignal := *relayLib.NewUnblockSignal()
 	defer programShouldQuitSignal.Trigger()
+
+	if config.GoProfilingServerEnabled {
+		go func() {
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
+	}
 
 	// start the relay
 	relay := relayLib.CreateWebrtcRelay(config)

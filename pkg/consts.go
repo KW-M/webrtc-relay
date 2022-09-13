@@ -103,6 +103,11 @@ type WebrtcRelayConfig struct {
 	// IncludeMessagesInLogs: If true, messages sent and recived from the backend will be included in the logs, careful with using this in production.
 	// Default: "warn"
 	IncludeMessagesInLogs bool
+
+	// Go Profiling Server Enabled: If true, the webrtc-relay will start a go pprof profiling server on port 6060, careful with using this in production.
+	// see: https://go.dev/blog/pprof
+	// Default: false
+	GoProfilingServerEnabled bool
 }
 
 // TokenPersistanceFileJson is the json format of the token persistance file (see WebrtcRelayConfig.TokenPersistanceFile) where every key is a peer id this relay has recently had and the value is the corresponding token first sent when establishing this relay as peer on the peerjs server.
