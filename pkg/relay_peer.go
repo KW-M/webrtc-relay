@@ -218,8 +218,9 @@ func (p *RelayPeer) onConnecting() {
 func (p *RelayPeer) onConnected() {
 	p.currentState <- "connected"
 	p.expBackoffErrorCount = 0
-	if p.connectionTimeout != nil && !p.connectionTimeout.Stop() {
-		<-p.connectionTimeout.C
+	if p.connectionTimeout != nil {
+		p.connectionTimeout.Stop()
+		p.connectionTimeout = nil
 	}
 }
 
