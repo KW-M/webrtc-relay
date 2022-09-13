@@ -97,18 +97,11 @@ func (relay *WebrtcRelay) Start() {
 		}()
 	}
 
-	// mediaSrc, err := CreateNamedPipeMediaSource(config.NamedPipeFolder+"vido.pipe", 10000, h264FrameDuration, "video/h264", "my-stream")
-	// if err != nil {
-	// 	log.Error("Error creating named pipe media source: ", err)
-	// 	return
-	// }
-	// cameraLivestreamVideoTrack = mediaSrc.WebrtcTrack
-	// go mediaSrc.StartMediaStream(relay.stopRelaySignal)
-
 	// Setup the peerjs client to accept webrtc connections
-	relay.ConnCtrl = CreateWebrtcConnectionCtrl(relay)
-	go relay.ConnCtrl.StartPeerServerConnectionLoop()
+	relay.ConnCtrl = NewWebrtcConnectionCtrl(relay)
+	go relay.ConnCtrl.Start(relay.stopRelaySignal)
 
+	// Wait for the stop signal
 	relay.stopRelaySignal.Wait()
 }
 

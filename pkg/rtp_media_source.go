@@ -22,7 +22,7 @@ type RtpMediaSource struct {
 	log            *log.Entry
 }
 
-func CreateRtpMediaSource(url string, readBufferSize int, readInterval time.Duration, mediaMimeType string, trackName string) (*RtpMediaSource, error) {
+func NewRtpMediaSource(url string, readBufferSize int, readInterval time.Duration, mediaMimeType string, trackName string) (*RtpMediaSource, error) {
 	logger := log.WithField("rtp_media_src", url)
 	addrParts := strings.Split(url, ":")
 	ip := net.ParseIP(addrParts[0])

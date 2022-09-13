@@ -67,7 +67,7 @@ func GetDefaultRelayConfig() WebrtcRelayConfig {
 		MemorablePeerIdOffset:          0,
 		PeerInitConfigs:                []*PeerInitOptions{&peerInitOpts},
 		NamedPipeFolder:                "/tmp/webtrc-relay-pipes/",
-		TokenPersistanceFile:           "./webtrc-relay-tokens.json",
+		TokenPersistanceFile:           "/tmp/webtrc-relay-tokens.json",
 		CreateDatachannelNamedPipes:    true,
 		MessageDelimiter:               "\n",
 		MessageMetadataSeparator:       "|\"|", // intentionally an invalid json string

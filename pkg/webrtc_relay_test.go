@@ -83,14 +83,15 @@ func TestMsgRelay(t *testing.T) {
 
 	clientPeer.On("open", func(id interface{}) {
 		clientId := id.(string)
-		println("Client Peer Open: ", clientId, " (Client) now connecting to ", relay.ConnCtrl.GetRelayPeerId(), " (Relay)")
+		relayId := relay.ConnCtrl.RelayPeers[opts.Host].GetPeerId()
+		println("Client Peer Open: ", clientId, " (Client) now connecting to ", relayId, " (Relay)")
 
 		sendingMessages := [...]string{
 			"from relay to client_msg1",
 			"from relay to client_msg2",
 		}
 
-		dataConn, err := clientPeer.Connect(relay.ConnCtrl.GetRelayPeerId(), peer.NewConnectionOptions())
+		dataConn, err := clientPeer.Connect(relayId, peer.NewConnectionOptions())
 		assert.NoError(t, err)
 		assert.NotNil(t, dataConn)
 		dataConn.On("open", func(none interface{}) {
@@ -177,7 +178,7 @@ func TestPeer(t *testing.T) {
 
 	<-time.After(time.Second * 30)
 	println("END OF TEST, DESTROYING CLIENT PEER")
-	panic("END OF TEST, Panicing")
+	panic("END OF TEST, Panicking")
 	// clientPeer.Destroy()
 }
 

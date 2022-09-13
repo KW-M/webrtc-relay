@@ -77,7 +77,7 @@ type WebrtcRelayConfig struct {
 
 	// if UseMemorablePeerIds is true, this number rotates the name indecies for a given peer end number to make name collisions even less likely. Choose any random number that fits in the positive int range.
 	// Default: 0
-	MemorablePeerIdOffset uint
+	MemorablePeerIdOffset uint32
 
 	// File path to use for temporarilly storing the token used by peerjs server to verify this client (webrtc-relay) really is the peer id it says it is.
 	TokenPersistanceFile string

@@ -14,6 +14,17 @@ type MediaSource interface {
 	Close()
 }
 
+type DataConnectionInfo struct {
+	RelayPeer      *RelayPeer
+	DataConnection *peerjs.DataConnection
+	TargetPeerId   string
+}
+
+type MediaConnectionInfo struct {
+	MediaConnection *peerjs.MediaConnection
+	TargetPeerId    string
+}
+
 func generateMessageMetadataForBackend(srcPeerId string, peerEvent string, err string) string {
 	var metadata = new(DatachannelToRelayPipeMetadata)
 	metadata.SrcPeerId = srcPeerId
@@ -52,22 +63,60 @@ func parseMessageMetadataFromBackend(message string, msgMetadataSeparator string
 	}
 }
 
-func runFunctionForTargetPeers(targetPeerIds []string, conn *WebrtcConnectionCtrl, funcToRun func(targetPeerId string, dataConn *peerjs.DataConnection)) {
+func getMediaConnections(targetPeerIds []string, conn *WebrtcConnectionCtrl) []MediaConnectionInfo {
+	outConns := make([]MediaConnectionInfo, 0)
 	if targetPeerIds[0] == "*" {
-		// If the action is meant for all peers, send it to all peers
-		for peerId, dataConn := range conn.ActiveDataConnectionsToThisRelay {
-			funcToRun(peerId, dataConn)
+		// If the action is meant for all peers, return all the peer data connections
+		for _, RelayPeer := range conn.RelayPeers {
+			for peerId, mediaConn := range RelayPeer.openMediaConnections {
+				outConns = append(outConns, MediaConnectionInfo{
+					MediaConnection: mediaConn,
+					TargetPeerId:    peerId,
+				})
+			}
 		}
 	} else {
 		// Otherwise send it to just the specified target peers:
 		for _, peerId := range targetPeerIds {
-			if dataConn := conn.GetActiveDataConnection(peerId); dataConn != nil {
-				funcToRun(peerId, dataConn)
-			} else {
-				funcToRun(peerId, nil)
+			for _, RelayPeer := range conn.RelayPeers {
+				if mediaConn := RelayPeer.GetMediaConnection(peerId); mediaConn != nil {
+					outConns = append(outConns, MediaConnectionInfo{
+						MediaConnection: mediaConn,
+						TargetPeerId:    peerId,
+					})
+				}
 			}
 		}
 	}
+	return outConns
+}
+
+func getDataConnections(targetPeerIds []string, conn *WebrtcConnectionCtrl) []DataConnectionInfo {
+	outConns := make([]DataConnectionInfo, 0)
+	if targetPeerIds[0] == "*" {
+		// If the action is meant for all peers, return all the peer data connections
+		for _, RelayPeer := range conn.RelayPeers {
+			for peerId, dataConn := range RelayPeer.openDataConnections {
+				outConns = append(outConns, DataConnectionInfo{
+					DataConnection: dataConn,
+					TargetPeerId:   peerId,
+				})
+			}
+		}
+	} else {
+		// Otherwise send it to just the specified target peers:
+		for _, peerId := range targetPeerIds {
+			for _, RelayPeer := range conn.RelayPeers {
+				if dataConn := RelayPeer.GetDataConnection(peerId); dataConn != nil {
+					outConns = append(outConns, DataConnectionInfo{
+						DataConnection: dataConn,
+						TargetPeerId:   peerId,
+					})
+				}
+			}
+		}
+	}
+	return outConns
 }
 
 func handleConnectToPeersMsg(metaData RelayPipeToDatachannelMetadata, conn *WebrtcConnectionCtrl) {
@@ -98,70 +147,63 @@ func handleStartMediaStreamMsg(metaData RelayPipeToDatachannelMetadata, conn *We
 	mimeType := metaData.Params[1]
 	sourcePath := metaData.Params[2]
 
-	// exit if the relay peer hasn't been initialized yet
-	if conn.CurrentRelayPeer == nil {
-		log.Error("Cannot start media call: The relay peer has not yet been established (is nil).")
-		return
-	}
-
 	// make sure the  metadata is a valid media track udp (rtp) url;
 	sourceParts := strings.Split(sourcePath, "/")
 	if sourceParts[0] != "udp:" {
 		log.Error("Cannot start media call: The media source rtp url must start with 'udp://'")
 	}
 
-	// check if the passed track name refers to an already in use track source and if so, use the existing track;
-	TrackSrc, trackSrcFound := conn.MediaSources[trackName]
+	// check if the passed track name refers to an already in use track source;
+	TrackSrc, ok := conn.MediaSources[trackName]
+	if !ok { // No existing track under this name
 
-	// if no track is ready, create a new track source from the passed source url
-	if !trackSrcFound {
-
-		// create a new media stream rtp reciver and webrtc track
+		// Create a new media stream rtp reciver and webrtc track from the passed source url
 		ipAndPort := sourceParts[2]
-		mediaSrc, err := CreateRtpMediaSource(ipAndPort, 10000, h264FrameDuration, mimeType, trackName)
+		mediaSrc, err := NewRtpMediaSource(ipAndPort, 10000, h264FrameDuration, mimeType, trackName)
 		if err != nil {
 			log.Error("Error creating named pipe media source: ", err)
 			return
 		}
+
+		// Add the new media track back to the connection's media sources map
 		conn.MediaSources[trackName] = mediaSrc
 		TrackSrc = mediaSrc
 
-		// start relaying bytes from the udp rtp to the webrtc media channel
+		// start relaying bytes from the rtp udp url to the webrtc media track for this track
 		go mediaSrc.StartMediaStream()
 	}
 
-	runFunctionForTargetPeers(metaData.TargetPeerIds, conn, func(targetPeerId string, dataConn *peerjs.DataConnection) {
+	dataConns := getDataConnections(metaData.TargetPeerIds, conn)
+	for _, dataConn := range dataConns {
 
-		// get the media channel between us and the target peer (if one exists)
-		mediaChann, exists := conn.ActiveMediaConnectionsToThisRelay[targetPeerId]
+		// get the media channel between us and the target peer (if one exists based on the datachannel)
+		mediaChann, ok := dataConn.RelayPeer.openMediaConnections[dataConn.TargetPeerId]
 
 		// if a media channel exists with this peer...
-		if exists == true {
+		if ok == true {
 
-			// abort if this track is already added to the media channel  with this peer
+			// abort if this track is already added to the media connection/channel with this peer
 			relayMediaStream := mediaChann.GetLocalStream()
 			relayMediaTracks := relayMediaStream.GetTracks()
 			for _, track := range relayMediaTracks {
 				if track.ID() == trackName {
-					// if the track is already being sent to this peer, don't add it again
 					return
 				}
 			}
 
-			// add the track to the media channel if it isn't in the list of tracks for this media stream channel already
+			// add the track to the peer media channel
 			relayMediaStream.AddTrack(TrackSrc.GetTrack())
 
 		} else {
 
-			// if a media channel doesn't exist with this peer,
-			// create one by calling that peer:
-			_, err := conn.CurrentRelayPeer.Call(targetPeerId, TrackSrc.GetTrack(), peerjs.NewConnectionOptions())
+			// if a media channel doesn't exist with this peer, create one by calling that peer:
+			_, err := dataConn.RelayPeer.CallPeer(dataConn.TargetPeerId, TrackSrc.GetTrack(), peerjs.NewConnectionOptions())
 			if err != nil {
-				log.Error("Error media calling client peer: ", targetPeerId)
+				log.Error("Error media calling client peer: ", dataConn.TargetPeerId)
 			}
 
 		}
-	})
+	}
 
 }
 
@@ -178,38 +220,32 @@ func handleMessageFromBackend(message string, conn *WebrtcConnectionCtrl) {
 	config := conn.Relay.config
 	log := conn.log
 
-	metaData, actualMsg, err := parseMessageMetadataFromBackend(message, config.MessageMetadataSeparator)
+	metadata, mainMsg, err := parseMessageMetadataFromBackend(message, config.MessageMetadataSeparator)
 	if err != nil {
 		log.Error("Could not parse message metadata. Err: " + err.Error() + " Message: " + message)
 	}
 
-	if len(metaData.Action) > 0 {
-		log.Debug("Handling message action: " + metaData.Action)
-		if metaData.Action == "Media_Call_Peer" {
-			handleStartMediaStreamMsg(metaData, conn)
-		} else if metaData.Action == "Stop_Media_Call" {
-			handleStopMediaStreamMsg(metaData, conn)
-		} else if metaData.Action == "Connect" {
-			handleConnectToPeersMsg(metaData, conn)
+	if len(metadata.Action) > 0 {
+		log.Debug("Handling message action: " + metadata.Action)
+		if metadata.Action == "Media_Call_Peer" {
+			handleStartMediaStreamMsg(metadata, conn)
+		} else if metadata.Action == "Stop_Media_Call" {
+			handleStopMediaStreamMsg(metadata, conn)
+		} else if metadata.Action == "Connect" {
+			handleConnectToPeersMsg(metadata, conn)
 		}
 	}
 
-	if len(actualMsg) != 0 {
+	if len(mainMsg) != 0 {
 
 		// Convert the message to byte array for transit through datachannel:
-		actualMsgBytes := []byte(actualMsg)
-
-		// Get the target peers from the metadata for this message
-		targetPeerIds := metaData.TargetPeerIds
+		mainMsgBytes := []byte(mainMsg)
 
 		// send the message to all target peers
-		runFunctionForTargetPeers(targetPeerIds, conn, func(targetPeerId string, dataConn *peerjs.DataConnection) {
-			if dataConn != nil {
-				dataConn.Send(actualMsgBytes, false)
-			} else {
-				log.Error("Error sending message to peer: " + targetPeerId + " Datachannel Not Open ")
-			}
-		})
+		dataConns := getDataConnections(metadata.TargetPeerIds, conn)
+		for _, dataConn := range dataConns {
+			dataConn.DataConnection.Send(mainMsgBytes, false)
+		}
 	}
 }
 
