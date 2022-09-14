@@ -84,16 +84,16 @@ func (conn *WebrtcConnectionCtrl) setupRelayPeer(peerOptions *peerjs.Options, st
 		for {
 			select {
 			case state := <-relayPeer.currentState:
-				if state == "open" {
-					conn.log.Infof("RelayPeer %s is now open.", peerOptions.Host)
-				} else if state == "disconnected" {
+				if state == RELAY_PEER_CONNECTING {
+					conn.log.Debugf("RelayPeer %s is now connecting.", peerOptions.Host)
+				} else if state == RELAY_PEER_CONNECTED {
+					conn.log.Infof("RelayPeer %s is now connected.", peerOptions.Host)
+				} else if state == RELAY_PEER_DISCONNECTED {
 					conn.log.Warnf("RelayPeer %s is now disconnected.", peerOptions.Host)
-				} else if state == "closed" {
-					conn.log.Warnf("RelayPeer %s is now closed.", peerOptions.Host)
-				} else if state == "destroyed" {
-					conn.log.Warnf("RelayPeer %s is now destoryed.", peerOptions.Host)
-				} else if state == "reconnecting" {
+				} else if state == RELAY_PEER_RECONNECTING {
 					conn.log.Warnf("RelayPeer %s is now reconnecting.", peerOptions.Host)
+				} else if state == RELAY_PEER_DESTROYED {
+					conn.log.Warnf("RelayPeer %s is now destroyed.", peerOptions.Host)
 				}
 			case <-stopRelaySignal.GetSignal():
 				conn.log.Debug("Exiting setupRelayPeer loop.")

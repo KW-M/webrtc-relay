@@ -9,6 +9,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const RELAY_PEER_CONNECTED = "connected"
+const RELAY_PEER_CONNECTING = "connecting"
+const RELAY_PEER_RECONNECTING = "reconnecting"
+const RELAY_PEER_DISCONNECTED = "disconnected"
+const RELAY_PEER_DESTROYED = "destroyed"
+
 // RelayPeer represents a peerjs instance used by this relay.
 type RelayPeer struct {
 	// the WebrtcConnectionCtrl that this RelayPeer is associated with
@@ -208,7 +214,7 @@ func (p *RelayPeer) addDataConnection(dataConn *peerjs.DataConnection) {
 }
 
 func (p *RelayPeer) onConnecting() {
-	p.currentState <- "connecting"
+	p.currentState <- RELAY_PEER_CONNECTING
 	p.connectionTimeout = time.AfterFunc(time.Duration(8+p.expBackoffErrorCount)*time.Second, func() {
 		p.expBackoffErrorCount += 1
 		p.recreatePeer()
@@ -216,7 +222,7 @@ func (p *RelayPeer) onConnecting() {
 }
 
 func (p *RelayPeer) onConnected() {
-	p.currentState <- "connected"
+	p.currentState <- RELAY_PEER_CONNECTED
 	p.expBackoffErrorCount = 0
 	if p.connectionTimeout != nil {
 		p.connectionTimeout.Stop()
@@ -225,7 +231,7 @@ func (p *RelayPeer) onConnected() {
 }
 
 func (p *RelayPeer) onDisconnected() {
-	p.currentState <- "disconnected"
+	p.currentState <- RELAY_PEER_DISCONNECTED
 	err := p.peer.Reconnect()
 	if err != nil {
 		p.expBackoffErrorCount += 1
@@ -237,14 +243,15 @@ func (p *RelayPeer) onDisconnected() {
 }
 
 func (p *RelayPeer) onReconnecting() {
-	p.currentState <- "reconnecting"
+	p.currentState <- RELAY_PEER_RECONNECTING
 }
 
 func (p *RelayPeer) onDestroyed() {
-	p.currentState <- "destroyed"
+	p.currentState <- RELAY_PEER_DESTROYED
 }
 
 func (p *RelayPeer) recreatePeer() {
+	p.log.Debug("Recreating peer")
 	p.onDestroyed()
 	p.createPeer()
 }
