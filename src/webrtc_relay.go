@@ -3,6 +3,8 @@ package webrtc_relay
 import (
 	"os"
 
+	"github.com/kw-m/webrtc-relay/src/namedpipe"
+	"github.com/kw-m/webrtc-relay/src/util"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -22,7 +24,7 @@ type WebrtcRelay struct {
 	// Config options for this WebrtcRelay
 	config WebrtcRelayConfig
 	// The signal to stop the WebrtcRelay
-	stopRelaySignal *UnblockSignal
+	stopRelaySignal *util.UnblockSignal
 }
 
 func CreateWebrtcRelay(config WebrtcRelayConfig) *WebrtcRelay {
@@ -42,7 +44,7 @@ func CreateWebrtcRelay(config WebrtcRelayConfig) *WebrtcRelay {
 
 	return &WebrtcRelay{
 		Log:                       lo,
-		stopRelaySignal:           NewUnblockSignal(),
+		stopRelaySignal:           util.NewUnblockSignal(),
 		config:                    config,
 		RelayOutputMessageChannel: make(chan string),
 		RelayInputMessageChannel:  make(chan string),
@@ -70,7 +72,7 @@ func (relay *WebrtcRelay) Start() {
 		var toDcPipePath string = config.NamedPipeFolder + "to_webrtc_relay.pipe"
 		var fromDcPipePath string = config.NamedPipeFolder + "from_webrtc_relay.pipe"
 		relay.Log.Debug("Making Named pipes: " + toDcPipePath + " & " + fromDcPipePath)
-		var msgPipe, err = CreateDuplexNamedPipeRelay(toDcPipePath, fromDcPipePath, 0666, 3)
+		var msgPipe, err = namedpipe.CreateDuplexNamedPipeRelay(toDcPipePath, fromDcPipePath, 0666, 3)
 		if err != nil {
 			relay.Log.Fatal("Failed to create message relay named pipe: ", err.Error())
 		}

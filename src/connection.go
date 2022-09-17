@@ -3,6 +3,8 @@ package webrtc_relay
 import (
 	"time"
 
+	media "github.com/kw-m/webrtc-relay/src/media"
+	util "github.com/kw-m/webrtc-relay/src/util"
 	peerjs "github.com/muka/peerjs-go"
 	peerjsServer "github.com/muka/peerjs-go/server"
 	log "github.com/sirupsen/logrus"
@@ -10,7 +12,7 @@ import (
 
 type MediaTrackData struct {
 	Track       *peerjs.MediaStreamTrack // the media track
-	MediaSource *RtpMediaSource          // the source handler of the media track
+	MediaSource *media.RtpMediaSource    // the source handler of the media track
 	// ConsumerPeerIds []string                 // list of peer ids that are reciving this stream through a media channel
 }
 
@@ -22,7 +24,7 @@ type WebrtcConnectionCtrl struct {
 	// map of relayPeers owned by this WebrtcConnectionCtrl (key is peer server hostname that the relayPeer is connected to)
 	RelayPeers map[string]*RelayPeer
 	// map of media streams being broadcast to this relay from the backend (key is the stream name)
-	MediaSources map[string]*RtpMediaSource
+	MediaSources map[string]*media.RtpMediaSource
 	// The (json) store used to keep peer server tokens between sessions
 	TokenStore *TokenPersistanceStore
 	// the log for this WebrtcConnectionCtrl
@@ -33,13 +35,13 @@ func NewWebrtcConnectionCtrl(relay *WebrtcRelay) *WebrtcConnectionCtrl {
 	return &WebrtcConnectionCtrl{
 		Relay:        relay,
 		RelayPeers:   make(map[string]*RelayPeer),
-		MediaSources: make(map[string]*RtpMediaSource),
-		TokenStore:   NewTokenPersistanceStore(relay),
+		MediaSources: make(map[string]*media.RtpMediaSource),
+		TokenStore:   NewTokenPersistanceStore(relay.config.TokenPersistanceFile, relay.Log.Logger),
 		log:          relay.Log.WithFields(log.Fields{"mod": "ConnCtrl"}),
 	}
 }
 
-func (conn *WebrtcConnectionCtrl) Start(stopRelaySignal *UnblockSignal) {
+func (conn *WebrtcConnectionCtrl) Start(stopRelaySignal *util.UnblockSignal) {
 	// Start all of the peers specified in the config
 	for _, config := range conn.Relay.config.PeerInitConfigs {
 
@@ -74,7 +76,7 @@ func (conn *WebrtcConnectionCtrl) Start(stopRelaySignal *UnblockSignal) {
  * This function also handles the "error", "disconnected" and "closed" events for the peerjs server connection.
  * This function is blocking and will not return until the peer connection fails (with the error) or Relay.stopRelaySignal is triggered.
  */
-func (conn *WebrtcConnectionCtrl) setupRelayPeer(peerOptions *peerjs.Options, stopRelaySignal *UnblockSignal) error {
+func (conn *WebrtcConnectionCtrl) setupRelayPeer(peerOptions *peerjs.Options, stopRelaySignal *util.UnblockSignal) error {
 
 	// create a new RelayPeer class and add it to the map of relayPeers
 	relayPeer := NewRelayPeer(conn, *peerOptions, 0)

@@ -1,4 +1,4 @@
-package webrtc_relay
+package media
 
 import (
 	"errors"
@@ -18,7 +18,7 @@ import (
 func read_h264_file(pipe *NamedPipeMediaSource) error {
 
 	// NAIVE IMPLEMENTATION:
-	// return read_raw_stream(pipe, 4096, h264FrameDuration)
+	// return read_raw_stream(pipe, 4096, H264FrameDuration)
 
 	// SMARTER IMPLEMENTATION:
 	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/src/main.go
@@ -36,7 +36,7 @@ func read_h264_file(pipe *NamedPipeMediaSource) error {
 	}
 
 	spsAndPpsCache := []byte{}
-	ticker := time.NewTicker(h264FrameDuration)
+	ticker := time.NewTicker(H264FrameDuration)
 	for {
 		select {
 		case <-pipe.exitSignal.GetSignal():

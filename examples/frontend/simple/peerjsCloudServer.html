@@ -8,14 +8,30 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <meta name="description" content="">
     <meta name="author" content="">
+    <style>
+        body {
+            padding: 8px;
+        }
+
+        #messages {
+            white-space: pre;
+            font-family: monospace;
+            line-height: 1.6em;
+        }
+
+    </style>
 </head>
 
 
 <body>
     <h1>Peerjs Cloud - Webrtc-Relay Simple Frontend</h1>
     <button id="connect_btn">Click to connect</button>
-    <button id="start_video_btn" disabled>Start video stream</button>
-    <br>
+    <button id="start_video_btn" disabled>Send "Begin video stream" message</button>
+    <p>
+        Open Browser Console For Progress.<br />
+        Type any key to send a message once connected.
+    </p>
+    <section id="messages"></section>
 
     <!-- Include the peerjs library -->
     <script src="js/peerjs.min.js"></script>

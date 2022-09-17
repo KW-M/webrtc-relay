@@ -1,6 +1,7 @@
 // for converting text to/from binary for messages sent/received through the webrtc datachannel
 const messageEncoder = new TextEncoder(); // always utf-8
 const messageDecoder = new TextDecoder(); // always utf-8
+const messageDisplayElement = document.getElementById("messages")
 var messagePingIntervalId = null
 var relayWebrtcDatachannel = null
 
@@ -15,7 +16,7 @@ var relayConectionOpenCallback = function (relayDatachannel) {
     relayDatachannel.on('data', (data) => {
         msg = messageDecoder.decode(data);
         // add the message to the page:
-        document.body.appendChild(document.createTextNode(String(msg)));
+        messageDisplayElement.appendChild(document.createTextNode(String(msg)));
     });
 
     // send a message to the relay every second with the current time.
@@ -49,8 +50,6 @@ var connectButton = document.getElementById('connect_btn')
 connectButton.addEventListener('click', () => {
     // prompt the user for the peer id of the relay
     relayPeerId = window.prompt("Enter relay peer id to connect to (set in the webrtc-relay-config.json when you started the relay, followed by zero unless that peer id was already taken)", "go-relay-0")
-    // show a help message on the page:
-    document.body.appendChild(document.createTextNode("Open Browser Console For Progress. Type any key to send a message once connected."))
     // disable the connect button:
     connectButton.disabled = true
     // connect to the relay passing the callbacks defined above:

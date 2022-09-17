@@ -1,4 +1,4 @@
-package webrtc_relay
+package media
 
 import (
 	// "encoding/json"
@@ -20,13 +20,14 @@ import (
 
 	"time"
 
+	"github.com/kw-m/webrtc-relay/src/util"
 	webrtc "github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	h264FrameDuration = time.Millisecond * 33
+	H264FrameDuration = time.Millisecond * 33
 )
 
 // setup logrus logger
@@ -47,9 +48,9 @@ func initVideoTrack() *webrtc.TrackLocalStaticSample {
 	return cameraLivestreamVideoTrack
 }
 
-func readRawStream(programShouldQuitSignal *UnblockSignal, cmd io.Reader) error {
+func readRawStream(programShouldQuitSignal *util.UnblockSignal, cmd io.Reader) error {
 	readBufferSize := 4096
-	readInterval := h264FrameDuration
+	readInterval := H264FrameDuration
 	// just keeps reading the named pipe bytes at a set intervals and pushing them onto the webrtc track
 	tmpReadBuf := make([]byte, readBufferSize)
 	ticker := time.NewTicker(readInterval)
@@ -74,7 +75,7 @@ func readRawStream(programShouldQuitSignal *UnblockSignal, cmd io.Reader) error 
 	}
 }
 
-func pipeVideoToStream(programShouldQuitSignal *UnblockSignal) error {
+func pipeVideoToStream(programShouldQuitSignal *util.UnblockSignal) error {
 	// Startup libcamera-vid command to get the video data from the camera exposed (locally) on a http/tcp port
 	// 960x720
 	// "--width", "640", "--height", "480",
@@ -135,7 +136,7 @@ func pipeVideoToStream(programShouldQuitSignal *UnblockSignal) error {
 	// 	// * avoids accumulating skew, just calling time.Sleep didn't compensate for the time spent parsing the data
 	// 	// * works around latency issues with Sleep (see https://github.com/golang/go/issues/44343)
 	// 	spsAndPpsCache := []byte{}
-	// 	ticker := time.NewTicker(h264FrameDuration)
+	// 	ticker := time.NewTicker(H264FrameDuration)
 	// 	for ; true; <-ticker.C {
 	// 		nal, h264Err := h264.NextNAL()
 	// 		if h264Err == io.EOF {

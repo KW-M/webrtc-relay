@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/kw-m/webrtc-relay/src/media"
 	peerjs "github.com/muka/peerjs-go"
 	webrtc "github.com/pion/webrtc/v3"
 )
@@ -159,7 +160,7 @@ func handleStartMediaStreamMsg(metaData RelayPipeToDatachannelMetadata, conn *We
 
 		// Create a new media stream rtp reciver and webrtc track from the passed source url
 		ipAndPort := sourceParts[2]
-		mediaSrc, err := NewRtpMediaSource(ipAndPort, 10000, h264FrameDuration, mimeType, trackName)
+		mediaSrc, err := media.NewRtpMediaSource(ipAndPort, 10000, media.H264FrameDuration, mimeType, trackName)
 		if err != nil {
 			log.Error("Error creating named pipe media source: ", err.Error())
 			return

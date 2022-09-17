@@ -1,10 +1,11 @@
-package webrtc_relay
+package namedpipe
 
 import (
 	"net"
 	"os"
 	"time"
 
+	"github.com/kw-m/webrtc-relay/src/util"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,7 +20,7 @@ import (
 type UnixSocketRelay struct {
 	socketConnection      net.Conn
 	socketListener        net.Listener
-	exitSocketLoopsSignal *UnblockSignal
+	exitSocketLoopsSignal *util.UnblockSignal
 	messagesToSocket      chan string
 	messagesFromSocket    chan string
 	readBufferSize        int
@@ -161,7 +162,7 @@ func (sock *UnixSocketRelay) startSocketServer(unixSocketPath string) {
  * PARAM: readBufferSize is the size of the read buffer for the socket connection.
  * RETURNS: a UnixSocketRelay struct that is the new relay for the unix socket.
  */
-func CreateUnixSocketRelay(closeSocketSignal *UnblockSignal, messagesFromSocket *chan string, messagesToSocket *chan string, unixSocketPath string, readBufferSize int) *UnixSocketRelay {
+func CreateUnixSocketRelay(closeSocketSignal *util.UnblockSignal, messagesFromSocket *chan string, messagesToSocket *chan string, unixSocketPath string, readBufferSize int) *UnixSocketRelay {
 	sock := new(UnixSocketRelay)
 	sock.messagesToSocket = *messagesToSocket
 	sock.messagesFromSocket = *messagesFromSocket
@@ -175,7 +176,7 @@ func CreateUnixSocketRelay(closeSocketSignal *UnblockSignal, messagesFromSocket 
 				sock.exitSocketLoopsSignal.Trigger()
 				return
 			default:
-				sock.exitSocketLoopsSignal = NewUnblockSignal()
+				sock.exitSocketLoopsSignal = util.NewUnblockSignal()
 				sock.startSocketServer(unixSocketPath)
 				time.Sleep(time.Second * 10) // wait a second before trying to reconnect
 			}

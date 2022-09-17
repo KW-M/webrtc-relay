@@ -1,4 +1,4 @@
-package webrtc_relay
+package media
 
 import (
 	"os"
@@ -7,6 +7,7 @@ import (
 
 	// "os"
 
+	"github.com/kw-m/webrtc-relay/src/util"
 	webrtc "github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 )
@@ -14,7 +15,7 @@ import (
 type NamedPipeMediaSource struct {
 	pipeFile       *os.File
 	pipeFilePath   string
-	exitSignal     *UnblockSignal
+	exitSignal     *util.UnblockSignal
 	WebrtcTrack    *webrtc.TrackLocalStaticSample
 	readInterval   time.Duration
 	readBufferSize int
@@ -25,7 +26,7 @@ func CreateNamedPipeMediaSource(pipeFilePath string, readBufferSize int, readInt
 	var pipe = NamedPipeMediaSource{
 		pipeFile:       nil,
 		pipeFilePath:   pipeFilePath,
-		exitSignal:     NewUnblockSignal(),
+		exitSignal:     util.NewUnblockSignal(),
 		readInterval:   readInterval,
 		readBufferSize: readBufferSize,
 		log:            log.WithField("media_pipe", pipeFilePath),
@@ -61,7 +62,7 @@ func (pipe *NamedPipeMediaSource) GetTrack() *webrtc.TrackLocalStaticSample {
 	return pipe.WebrtcTrack
 }
 
-//https://stackoverflow.com/questions/41739837/all-mime-types-supported-by-mediarecorder-in-firefox-and-chrome
+// https://stackoverflow.com/questions/41739837/all-mime-types-supported-by-mediarecorder-in-firefox-and-chrome
 func (pipe *NamedPipeMediaSource) StartMediaStream() error {
 	defer pipe.Close()
 	for {

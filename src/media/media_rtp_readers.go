@@ -1,4 +1,4 @@
-package webrtc_relay
+package media
 
 import (
 	"errors"

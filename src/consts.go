@@ -110,9 +110,6 @@ type WebrtcRelayConfig struct {
 	GoProfilingServerEnabled bool
 }
 
-// TokenPersistanceFileJson is the json format of the token persistance file (see WebrtcRelayConfig.TokenPersistanceFile) where every key is a peer id this relay has recently had and the value is the corresponding token first sent when establishing this relay as peer on the peerjs server.
-type TokenPersistanceFileJson map[string]string
-
 // DatachannelToRelayPipeMetadata is prepended (as a JSON string) to messages sent to your program through the named pipe message relay (when AddMetadataToBackendMessages config is True)
 type DatachannelToRelayPipeMetadata struct {
 

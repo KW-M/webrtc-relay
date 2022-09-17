@@ -7,6 +7,8 @@ import (
 	peerjs "github.com/muka/peerjs-go"
 	"github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
+
+	util "github.com/kw-m/webrtc-relay/src/util"
 )
 
 const RELAY_PEER_CONNECTED = "connected"
@@ -133,7 +135,7 @@ func (p *RelayPeer) ConnectToPeer(peerId string, opts *peerjs.ConnectionOptions)
 func (p *RelayPeer) GetRelayPeerId() string {
 	config := p.connCtrl.Relay.config
 	if config.UseMemorablePeerIds {
-		return config.BasePeerId + getUniqueName(p.peerIdEndingNum, config.MemorablePeerIdOffset)
+		return config.BasePeerId + util.GetUniqueName(p.peerIdEndingNum, config.MemorablePeerIdOffset)
 	} else {
 		return config.BasePeerId + strconv.FormatInt(int64(p.peerIdEndingNum+config.MemorablePeerIdOffset), 10)
 	}

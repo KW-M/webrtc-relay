@@ -9,21 +9,25 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// TokenPersistanceFileJson is the json format of the token persistance file (see WebrtcRelayConfig.TokenPersistanceFile) where every key is a peer id this relay has recently had and the value is the corresponding token first sent when establishing this relay as peer on the peerjs server.
+type tokenStoreMap map[string]string
+
 type TokenPersistanceStore struct {
 	// the Relay that this TokenPersistanceStore is associated with
-	Relay *WebrtcRelay
+	tokenStoreFilePath string
 	// Log: The logrus logger to use for debug logs within WebrtcRelay Code
 	log *log.Entry
 	// the map of peerIds to tokens (loaded from the json file)
-	tokenMap TokenPersistanceFileJson
+	tokenMap tokenStoreMap
 }
 
 // NewTokenPersistanceStore: Creates a new TokenPersistanceStore
-func NewTokenPersistanceStore(relay *WebrtcRelay) *TokenPersistanceStore {
+// tps.tokenStoreFilePath
+func NewTokenPersistanceStore(tokenStoreFilePath string, log *log.Logger) *TokenPersistanceStore {
 	return &TokenPersistanceStore{
-		Relay:    relay,
-		log:      relay.Log.WithField("mod", "token_persistance_store"),
-		tokenMap: make(map[string]string),
+		tokenStoreFilePath: tokenStoreFilePath,
+		log:                log.WithField("mod", "token_persistance_store"),
+		tokenMap:           make(map[string]string),
 	}
 }
 
@@ -62,11 +66,11 @@ func (tps *TokenPersistanceStore) DiscardToken(peerId string) error {
 
 // readJsonStore: Reads the json TokenPersistanceStore from the file specified in the config
 func (tps *TokenPersistanceStore) readJsonStore() error {
-	if tps.Relay.config.TokenPersistanceFile == "" {
+	if tps.tokenStoreFilePath == "" {
 		return nil // do not load from file if no file is specified
 	}
-	tps.log.Debug("Reading token persistance store from file: ", tps.Relay.config.TokenPersistanceFile)
-	jsonFile, err := os.Open(tps.Relay.config.TokenPersistanceFile)
+	tps.log.Debug("Reading token persistance store from file: ", tps.tokenStoreFilePath)
+	jsonFile, err := os.Open(tps.tokenStoreFilePath)
 	if err != nil {
 		return err
 	}
@@ -87,11 +91,11 @@ func (tps *TokenPersistanceStore) readJsonStore() error {
 
 // writeJsonStore: Writes the json TokenPersistanceStore to the file specified in the config
 func (tps *TokenPersistanceStore) writeJsonStore() error {
-	if tps.Relay.config.TokenPersistanceFile == "" {
+	if tps.tokenStoreFilePath == "" {
 		return nil // do not write to file if no file is specified
 	}
-	tps.log.Debug("Writing token persistance store to file: ", tps.Relay.config.TokenPersistanceFile)
-	jsonFile, err := os.Create(tps.Relay.config.TokenPersistanceFile)
+	tps.log.Debug("Writing token persistance store to file: ", tps.tokenStoreFilePath)
+	jsonFile, err := os.Create(tps.tokenStoreFilePath)
 	if err != nil {
 		return err
 	}

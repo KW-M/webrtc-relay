@@ -53,7 +53,7 @@ Behind the scenes, this tool uses the [Pion WebRTC](https://github.com/pion/webr
 
 See the example configs in [examples/python/configs](examples/python/configs)
 
-For an updated list of config options available see the WebrtcRelayConfig struct in [pkg/consts.go](pkg/consts.go).
+For an updated list of config options available see the WebrtcRelayConfig struct in [src/consts.go](src/consts.go).
 
 ## Getting Media from Devices
 

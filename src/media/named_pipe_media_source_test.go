@@ -1,4 +1,4 @@
-package webrtc_relay
+package media
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kw-m/webrtc-relay/src/namedpipe"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -65,7 +66,7 @@ func TestNamedPipeMediaSource(t *testing.T) {
 	go mediaSrc.StartMediaStream()
 
 	// create the named pipe to write fake data too:
-	mediaGeneratorPipe, err := CreateNamedPipeRelay(pipeFilePath, 0666, os.O_WRONLY, 0)
+	mediaGeneratorPipe, err := namedpipe.CreateNamedPipeRelay(pipeFilePath, 0666, os.O_WRONLY, 0)
 	assert.NoError(t, err)
 	go mediaGeneratorPipe.RunPipeLoops()
 

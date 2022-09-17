@@ -1,4 +1,4 @@
-package webrtc_relay
+package namedpipe
 
 import (
 	"bufio"
@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	util "github.com/kw-m/webrtc-relay/src/util"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,7 +20,7 @@ type NamedPipeRelay struct {
 	MessagesFromPipeChannel chan string
 	readChannelBufferCount  int
 	lastErr                 error
-	exitSignal              *UnblockSignal
+	exitSignal              *util.UnblockSignal
 	log                     *log.Entry
 }
 
@@ -29,7 +30,7 @@ func CreateNamedPipeRelay(pipeFilePath string, pipeFilePermissions uint32, pipeO
 		pipeFilePath:            pipeFilePath,
 		pipeFilePermissions:     pipeFilePermissions,
 		pipeFileOpenMode:        pipeOpenMode,
-		exitSignal:              NewUnblockSignal(),
+		exitSignal:              util.NewUnblockSignal(),
 		MessagesFromPipeChannel: make(chan string, readChannelBufferCount),
 		readChannelBufferCount:  readChannelBufferCount,
 		log:                     log.WithFields(log.Fields{"pipe": pipeFilePath, "fileOpenMode": pipeOpenMode}),
@@ -131,12 +132,12 @@ type DuplexNamedPipeRelay struct {
 	outgoingPipe            *NamedPipeRelay
 	MessagesFromPipeChannel chan string
 	log                     *log.Entry
-	exitSignal              *UnblockSignal
+	exitSignal              *util.UnblockSignal
 }
 
 func CreateDuplexNamedPipeRelay(incomingPipeFilePath string, outgoingPipeFilePath string, pipeFilePermissions uint32, readChannelBufferCount int) (*DuplexNamedPipeRelay, error) {
 	var duplexPipe = DuplexNamedPipeRelay{
-		exitSignal: NewUnblockSignal(),
+		exitSignal: util.NewUnblockSignal(),
 		log:        log.WithField("mod", "webrtc_relay/duplex_pipe_pair"),
 	}
 

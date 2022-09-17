@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+option go_package = "github.com/kw-m/webrtc-relay/proto;proto";
+// option go_package = "./";
+option java_multiple_files = true;
+option java_package = "io.webrtcrelay.proto";
+option java_outer_classname = "WebrtcRelayProto";
+
+package webrtcrelay;
+
+
+enum Status {
+    OK = 0;
+    ERROR = 1;
+}
+
+enum PeerConnErrorTypes {
+    UNKNOWN_ERROR = 0;
+    INVALID_RELAY_PEER_CONFIG_ID = 1;
+    INVALID_TARGET_PEERID = 2;
+    PEER_NOT_FOUND = 3;
+    NETWORK_ERROR = 4;
+}
+
+enum RelayEventTypes {
+    MESSAGE_RECEIVED = 0; // MsgRecivedEvent
+
+    RELAY_CONNECTED = 4; // RelayConnectionEvent
+    RELAY_DISCONNECTED = 5; // ^ ditto
+    RELAY_ERROR = 6; // RelayErrorEvent
+
+    PEER_CONNECTED = 8; // PeerConnectionEvent
+    PEER_DISCONNECTED = 9; // ^ ditto
+    PEER_CALLED = 10; // PeerCalledEvent
+    PEER_HUNGUP = 11; // PeerConnectionEvent
+    PEER_CONN_ERROR = 12; // PeerConnErrorEvent
+}
+
+message RelayEventStream {
+    RelayEventTypes eventType = 1;
+    oneof eventDetails {
+        MsgRecivedEvent msg = 2;
+        RelayConnectionEvent relayEvent = 3;
+        RelayErrorEvent relayError = 5;
+        PeerConnectionEvent peerConnection = 8;
+        PeerCalledEvent peerCalled = 10;
+        PeerConnErrorEvent peerConnError = 11;
+    }
+
+    message MsgRecivedEvent {
+        string srcPeerId = 1;
+        uint32 relayPeerConfigId = 2;
+        bytes payload = 3;
+    }
+
+    message RelayConnectionEvent {
+        uint32 relayPeerConfigId = 1;
+    }
+
+    message RelayErrorEvent {
+        uint32 relayPeerConfigId = 1;
+        enum RelayErrorTypes {
+            UNKNOWN_ERROR = 0;
+            INVALID_REQUEST = 1;
+            SERVER_NOT_FOUND = 2;
+            INVALID_PEERID = 3;
+        }
+        RelayErrorTypes error = 2;
+    }
+
+    message PeerConnectionEvent {
+        uint32 relayPeerConfigId = 1;
+        string srcPeerId = 2;
+    }
+
+    message PeerCalledEvent {
+        uint32 relayPeerConfigId = 1;
+        string srcPeerId = 2;
+        // more fields tbd
+    }
+
+    message PeerConnErrorEvent {
+        uint32 relayPeerConfigId = 1;
+        string srcPeerId = 2;
+        // more fields tbd
+    }
+}
+
+message ConnectionRequest {
+    uint32 relayPeerConfigId = 1;
+    string peerId = 2;
+}
+
+message ConnectionResponse {
+    Status status = 1;
+    optional PeerConnErrorTypes error = 2;
+}
+
+message SendMsgRequest {
+    optional uint32 relayPeerConfigId = 1;
+    repeated string targetPeerIds = 2;
+    bytes payload = 3;
+}
+
+message SendMsgResponse {
+    Status status = 1;
+    optional PeerConnErrorTypes error = 2;
+}
+
+
+message EventStreamRequest { } // empty (not used yet)
+
+service WebRTCRelay {
+
+  // Get a stream of events from the webrtc-relay server including recived messages, peer dis/connection events, relay dis/connection events, errors etc.
+  // see the RelayEventStream type for more details
+  // This is a server-side streaming RPC
+  // The client should send an empty EventStreamRequest message to start the stream
+  rpc EventStream(EventStreamRequest) returns (stream RelayEventStream) {}
+  rpc ConnectToPeer (ConnectionRequest) returns (ConnectionResponse) {} // TBD
+  rpc DisconnectFromPeer (ConnectionRequest) returns (ConnectionResponse) {} // TBD
+  rpc CallPeer (ConnectionRequest) returns (ConnectionResponse) {} // TBD
+  rpc HangupPeer (ConnectionRequest) returns (ConnectionResponse) {} // TBD
+  rpc SendMsgStream(stream SendMsgRequest) returns (ConnectionResponse) {} // stream of messages format (recommened, should have lower latency)
+//   rpc SendMsg (SendMsgRequest) returns (SendMsgResponse) {} // TODO: single message format
+}
