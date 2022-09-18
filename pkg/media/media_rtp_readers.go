@@ -16,7 +16,7 @@ func read_raw_rtp_stream(rtpSource *RtpMediaSource) error {
 			return err
 		}
 
-		if _, err = rtpSource.WebrtcTrack.Write(inboundRTPPacket[:n]); err != nil {
+		if _, err = rtpSource.webrtcTrack.Write(inboundRTPPacket[:n]); err != nil {
 			if errors.Is(err, io.ErrClosedPipe) {
 				// The peerConnection has been closed.
 				rtpSource.log.Warn("PeerConnection closed")

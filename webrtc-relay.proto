@@ -9,85 +9,122 @@ option java_outer_classname = "WebrtcRelayProto";
 package webrtcrelay;
 
 
+// enum RelayEventTypes {
+//     MESSAGE_RECEIVED = 0; // MsgRecivedEvent
+
+//     RELAY_CONNECTED = 4; // RelayConnectionEvent
+//     RELAY_DISCONNECTED = 5; // ^ ditto
+//     RELAY_ERROR = 6; // RelayErrorEvent
+
+//     PEER_CONNECTED = 8; // PeerConnectionEvent
+//     PEER_DISCONNECTED = 9; // ^ ditto
+//     PEER_CALLED = 10; // PeerCalledEvent
+//     PEER_HUNGUP = 11; // PeerConnectionEvent
+//     PEER_CONN_ERROR = 12; // PeerConnErrorEvent
+// }
+
 enum Status {
     OK = 0;
     ERROR = 1;
 }
 
 enum PeerConnErrorTypes {
-    UNKNOWN_ERROR = 0;
-    INVALID_RELAY_PEER_CONFIG_ID = 1;
-    INVALID_TARGET_PEERID = 2;
-    PEER_NOT_FOUND = 3;
-    NETWORK_ERROR = 4;
+    CONNECTION_CLOSED = 0;
+    UNKNOWN_ERROR = 1;
+    INVALID_RELAY_PEER_CONFIG_ID = 2;
+    INVALID_TARGET_PEERID = 3;
+    PEER_NOT_FOUND = 4;
+    NETWORK_ERROR = 5;
 }
 
-enum RelayEventTypes {
-    MESSAGE_RECEIVED = 0; // MsgRecivedEvent
+enum RelayErrorTypes {
+    UNKNOWN = 0;
+    INVALID_CONFIG = 1;
+    SERVER_NOT_FOUND = 2;
+    INVALID_PEERID = 3;
+}
 
-    RELAY_CONNECTED = 4; // RelayConnectionEvent
-    RELAY_DISCONNECTED = 5; // ^ ditto
-    RELAY_ERROR = 6; // RelayErrorEvent
+/// ----- Relay Event Stream Event Types -----
 
-    PEER_CONNECTED = 8; // PeerConnectionEvent
-    PEER_DISCONNECTED = 9; // ^ ditto
-    PEER_CALLED = 10; // PeerCalledEvent
-    PEER_HUNGUP = 11; // PeerConnectionEvent
-    PEER_CONN_ERROR = 12; // PeerConnErrorEvent
+// RelayEventStream event that is sent when a message is received from any peer connected to any relayPeer on this webrtc-relay
+message MsgRecivedEvent {
+    string srcPeerId = 1;
+    uint32 relayPeerNumber = 2;
+    bytes payload = 3;
+}
+
+// RelayEventStream event that is sent when any relayPeer on this webrtc-relay successfully (re)connects to the peerjs server it is setup to connect to
+message RelayConnectedEvent {
+    uint32 relayPeerNumber = 1;
+}
+
+// RelayEventStream event that is sent when  any relayPeer on this webrtc-relay disconnects from the peerjs server it is setup to connect to
+message RelayDisconnectedEvent {
+    uint32 relayPeerNumber = 1;
+}
+
+// RelayEventStream event that is sent when a relayPeer encounters an error
+message RelayErrorEvent {
+    uint32 relayPeerNumber = 1;
+    RelayErrorTypes error = 2;
+}
+
+// RelayEventStream event that is sent when a peer connects to any relayPeer on this webrtc-relay
+message PeerConnectedEvent {
+    uint32 relayPeerNumber = 1;
+    string srcPeerId = 2;
+}
+
+// RelayEventStream event that is sent when a peer disconnects from any relayPeer on this webrtc-relay
+message PeerDisconnectedEvent {
+    uint32 relayPeerNumber = 1;
+    string srcPeerId = 2;
+}
+
+// RelayEventStream event that is sent when a peer opens a media call with any relayPeer on this webrtc-relay
+message PeerCalledEvent {
+    uint32 relayPeerNumber = 1;
+    string srcPeerId = 2;
+    string streamName = 3;
+    repeated string trackNames = 4;
+    // more fields tbd
+}
+
+// RelayEventStream event that is sent when a peer hangs up an open media call with any relayPeer on this webrtc-relay
+message PeerHungupEvent {
+    uint32 relayPeerNumber = 1;
+    string srcPeerId = 2;
+}
+
+// RelayEventStream event that is sent when any peer connection encounters an error
+// Note that this is not also sent on the event stream when in response to an RPC call to connectToPeer() or disconnectFromPeer()
+message PeerConnErrorEvent {
+    uint32 relayPeerNumber = 1;
+    string srcPeerId = 2;
+    PeerConnErrorTypes error = 3;
 }
 
 message RelayEventStream {
-    RelayEventTypes eventType = 1;
-    oneof eventDetails {
-        MsgRecivedEvent msg = 2;
-        RelayConnectionEvent relayEvent = 3;
+    oneof event {
+        MsgRecivedEvent msgRecived = 2;
+        RelayConnectedEvent relayConnected = 3;
+        RelayDisconnectedEvent relayDisconnected = 4;
         RelayErrorEvent relayError = 5;
-        PeerConnectionEvent peerConnection = 8;
+        PeerConnectedEvent peerConnected = 8;
+        PeerDisconnectedEvent peerDisconnected = 9;
         PeerCalledEvent peerCalled = 10;
-        PeerConnErrorEvent peerConnError = 11;
-    }
-
-    message MsgRecivedEvent {
-        string srcPeerId = 1;
-        uint32 relayPeerConfigId = 2;
-        bytes payload = 3;
-    }
-
-    message RelayConnectionEvent {
-        uint32 relayPeerConfigId = 1;
-    }
-
-    message RelayErrorEvent {
-        uint32 relayPeerConfigId = 1;
-        enum RelayErrorTypes {
-            UNKNOWN_ERROR = 0;
-            INVALID_REQUEST = 1;
-            SERVER_NOT_FOUND = 2;
-            INVALID_PEERID = 3;
-        }
-        RelayErrorTypes error = 2;
-    }
-
-    message PeerConnectionEvent {
-        uint32 relayPeerConfigId = 1;
-        string srcPeerId = 2;
-    }
-
-    message PeerCalledEvent {
-        uint32 relayPeerConfigId = 1;
-        string srcPeerId = 2;
-        // more fields tbd
-    }
-
-    message PeerConnErrorEvent {
-        uint32 relayPeerConfigId = 1;
-        string srcPeerId = 2;
-        // more fields tbd
+        PeerHungupEvent peerHungup = 11;
+        PeerConnErrorEvent peerConnError = 12;
     }
 }
 
+// EventStreamRequest should be sent empty (not used yet)
+message EventStreamRequest { }
+
+// ----- Unarary RPCs (request -> response)  ------
+
 message ConnectionRequest {
-    uint32 relayPeerConfigId = 1;
+    uint32 relayPeerNumber = 1;
     string peerId = 2;
 }
 
@@ -96,10 +133,25 @@ message ConnectionResponse {
     optional PeerConnErrorTypes error = 2;
 }
 
+message CallRequest {
+    string peerId = 1;
+    optional uint32 relayPeerNumber = 2;
+}
+
+message CallResponse {
+    Status status = 1;
+    optional PeerConnErrorTypes error = 2;
+}
+
+message HangupRequest {
+    string peerId = 2;
+    optional uint32 relayPeerNumber = 1;
+}
+
 message SendMsgRequest {
-    optional uint32 relayPeerConfigId = 1;
-    repeated string targetPeerIds = 2;
-    bytes payload = 3;
+    repeated string targetPeerIds = 1;
+    bytes payload = 2;
+    optional uint32 relayPeerNumber = 3;
 }
 
 message SendMsgResponse {
@@ -107,20 +159,31 @@ message SendMsgResponse {
     optional PeerConnErrorTypes error = 2;
 }
 
-
-message EventStreamRequest { } // empty (not used yet)
-
 service WebRTCRelay {
 
-  // Get a stream of events from the webrtc-relay server including recived messages, peer dis/connection events, relay dis/connection events, errors etc.
-  // see the RelayEventStream type for more details
-  // This is a server-side streaming RPC
+  // Get a stream of events from the webrtc-relay including recived messages, peer dis/connection events & errors, relay dis/connection events & errors.
+  // see the RelayEventStream type for more details - This is a server-side streaming RPC
   // The client should send an empty EventStreamRequest message to start the stream
-  rpc EventStream(EventStreamRequest) returns (stream RelayEventStream) {}
-  rpc ConnectToPeer (ConnectionRequest) returns (ConnectionResponse) {} // TBD
-  rpc DisconnectFromPeer (ConnectionRequest) returns (ConnectionResponse) {} // TBD
-  rpc CallPeer (ConnectionRequest) returns (ConnectionResponse) {} // TBD
-  rpc HangupPeer (ConnectionRequest) returns (ConnectionResponse) {} // TBD
+  rpc GetEventStream(EventStreamRequest) returns (stream RelayEventStream) {}
+
+  // Tell the webrtc-relay to connect to a peer
+  rpc ConnectToPeer (ConnectionRequest) returns (ConnectionResponse) {}
+
+  // Tell the webrtc-relay to disconnect from a peer it has an open connection with
+  rpc DisconnectFromPeer (ConnectionRequest) returns (ConnectionResponse) {}
+
+  // Tell the webrtc-relay to call a peer with a given stream name and media track
+  // can be used to initiate a call or to add a media track to an existing call (untested)
+  rpc CallPeer (CallRequest) returns (CallResponse) {}
+
+  // Tell the webrtc-relay to stop the media call with a peer (does not cause relay to disconnect from the peer)
+  rpc HangupPeer (ConnectionRequest) returns (CallResponse) {}
+
+  // Opens a stream to the webrtc-relay which can be used to send lots of messages to one or more connected peers with lower per-message overhead than the SendMsg() RPC call
+  // will not return errors if messages fail to send.
   rpc SendMsgStream(stream SendMsgRequest) returns (ConnectionResponse) {} // stream of messages format (recommened, should have lower latency)
-//   rpc SendMsg (SendMsgRequest) returns (SendMsgResponse) {} // TODO: single message format
+
+  // Send an individual message to one or more connected peers
+  // This is a unary RPC call (request -> response) and will return an error if the message could not be sent (unlike the stream version which will not return an error if some message could not be sent)
+  rpc SendMsg (SendMsgRequest) returns (SendMsgResponse) {} // TODO: single message format
 }

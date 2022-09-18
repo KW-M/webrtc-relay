@@ -4,22 +4,23 @@ import (
 	"time"
 
 	webrtc_relay "github.com/kw-m/webrtc-relay/pkg"
+	webrtc_relay_config "github.com/kw-m/webrtc-relay/pkg/config"
 )
 
 func main() {
 
 	// create a new config for the webrtc-relay, see src/consts.go for available options
-	config := webrtc_relay.GetDefaultRelayConfig()
+	config := webrtc_relay_config.GetDefaultRelayConfig()
 	config.CreateDatachannelNamedPipes = false // we don't need named pipes because this example is entirely in golang (also named pipes will compete with our loop to read messages)
 
 	// set up the options that will be used to connect to the peerjs server
-	cloudPeerServerOptions := webrtc_relay.GetPeerjsCloudPeerInitOptions()
-	localPeerServerOptions := webrtc_relay.GetLocalServerPeerInitOptions()
+	cloudPeerServerOptions := webrtc_relay_config.GetPeerjsCloudPeerInitOptions()
+	localPeerServerOptions := webrtc_relay_config.GetLocalServerPeerInitOptions()
 	localPeerServerOptions.Port = 9001 // change the port the local peer server will run on. You can change any of the other PeerInitOptions too (before creating the peer relay).
 
 	// set the peer init configs in the order they should start up:
 	// each RelayPeer with a unique hostname option should run concurrently and all datachannel messages will be routed to the correct client peer through whichever RelayPeer(s) that client peer is connected to.
-	config.PeerInitConfigs = []*webrtc_relay.PeerInitOptions{
+	config.PeerInitConfigs = []*webrtc_relay_config.PeerInitOptions{
 		&cloudPeerServerOptions,
 		&localPeerServerOptions,
 	}

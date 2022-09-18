@@ -8,19 +8,21 @@ import (
 
 	// "os"
 
-	"github.com/kw-m/webrtc-relay/src/util"
+	"github.com/kw-m/webrtc-relay/pkg/util"
 	webrtc "github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 )
 
 type RtpMediaSource struct {
-	listener       *net.UDPConn
-	udpAddress     *net.UDPAddr
-	exitSignal     *util.UnblockSignal
-	WebrtcTrack    *webrtc.TrackLocalStaticRTP
-	readInterval   time.Duration
-	readBufferSize int
-	log            *log.Entry
+	MediaSource
+	listener        *net.UDPConn
+	udpAddress      *net.UDPAddr
+	exitSignal      *util.UnblockSignal
+	webrtcTrack     *webrtc.TrackLocalStaticRTP
+	readInterval    time.Duration
+	readBufferSize  int
+	log             *log.Entry
+	consumerPeerIds []string // list of peer ids that are reciving this stream through a media channel
 }
 
 func NewRtpMediaSource(url string, readBufferSize int, readInterval time.Duration, mediaMimeType string, trackName string) (*RtpMediaSource, error) {
@@ -29,7 +31,7 @@ func NewRtpMediaSource(url string, readBufferSize int, readInterval time.Duratio
 	ip := net.ParseIP(addrParts[0])
 	port, err := strconv.Atoi(addrParts[1])
 	if err != nil {
-		logger.Error("Error parsing rtp url:", err.Error())
+		logger.Error("Error parsing rtp url (only host and port allowed):", err.Error())
 		return nil, err
 	}
 	var rtpSrc = RtpMediaSource{
@@ -48,26 +50,30 @@ func NewRtpMediaSource(url string, readBufferSize int, readInterval time.Duratio
 		rtpSrc.log.Error("Failed to create webrtc track: ", err)
 		return nil, err
 	}
-	rtpSrc.WebrtcTrack = track
+	rtpSrc.webrtcTrack = track
 
 	return &rtpSrc, nil
 }
 
-func (rtpSrc *RtpMediaSource) Close() {
-	if rtpSrc.listener != nil {
-		rtpSrc.exitSignal.Trigger()
-		if err := rtpSrc.listener.Close(); err != nil {
-			panic(err)
-		}
-	}
+func (rtpSrc *RtpMediaSource) AddConsumer(peerId string) {
+	rtpSrc.consumerPeerIds = append(rtpSrc.consumerPeerIds, peerId)
+}
+
+func (rtpSrc *RtpMediaSource) RemoveConsumer(peerId string) {
+	rtpSrc.consumerPeerIds = util.RemoveString(rtpSrc.consumerPeerIds, peerId)
+}
+
+func (rtpSrc *RtpMediaSource) GetConsumerPeerIds() []string {
+	return rtpSrc.consumerPeerIds
 }
 
 func (rtpSrc *RtpMediaSource) GetTrack() *webrtc.TrackLocalStaticRTP {
-	return rtpSrc.WebrtcTrack
+	return rtpSrc.webrtcTrack
 }
 
-// https://stackoverflow.com/questions/41739837/all-mime-types-supported-by-mediarecorder-in-firefox-and-chrome
-func (rtpSrc *RtpMediaSource) StartMediaStream() error {
+// StartMediaStream (blocking) starts pulling packets from the rtp media stream and sending them to the webrtc track
+func (rtpSrc *RtpMediaSource) StartMediaStream() {
+	// https://stackoverflow.com/questions/41739837/all-mime-types-supported-by-mediarecorder-in-firefox-and-chrome
 	defer rtpSrc.Close()
 	for {
 
@@ -86,7 +92,7 @@ func (rtpSrc *RtpMediaSource) StartMediaStream() error {
 			}
 		}()
 
-		mimeType := rtpSrc.WebrtcTrack.Codec().MimeType
+		mimeType := rtpSrc.webrtcTrack.Codec().MimeType
 		if mimeType == "video/h264" {
 			err = read_h264_rtp_stream(rtpSrc)
 		} else if mimeType == "video/VP8" {
@@ -104,6 +110,14 @@ func (rtpSrc *RtpMediaSource) StartMediaStream() error {
 		}
 
 		rtpSrc.exitSignal.Wait()
-		return nil
+	}
+}
+
+func (rtpSrc *RtpMediaSource) Close() {
+	if rtpSrc.listener != nil {
+		rtpSrc.exitSignal.Trigger()
+		if err := rtpSrc.listener.Close(); err != nil {
+			panic(err)
+		}
 	}
 }

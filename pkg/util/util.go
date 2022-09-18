@@ -41,3 +41,13 @@ func RemoveMatching(a []string, b []string) []string {
 
 	return output
 }
+
+// RemoveString removes a string from a slice of strings
+func RemoveString(s []string, f string) []string {
+	for i, v := range s {
+		if v == f {
+			return append(s[:i], s[i+1:]...)
+		}
+	}
+	return s
+}

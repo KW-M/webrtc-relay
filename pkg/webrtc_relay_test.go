@@ -4,16 +4,18 @@ import (
 	"testing"
 	"time"
 
+	relay_config "github.com/kw-m/webrtc-relay/pkg/config"
+	"github.com/kw-m/webrtc-relay/pkg/proto"
 	peer "github.com/muka/peerjs-go"
 	"github.com/muka/peerjs-go/server"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
-func createCloudTestConfig(createPipes bool) WebrtcRelayConfig {
+func createCloudTestConfig(createPipes bool) relay_config.WebrtcRelayConfig {
 
 	// FOR Connecting to a LOCAL PEERJS SERVER RUNNING ON THIS COMPUTER:
-	programConfig := GetDefaultRelayConfig()
+	programConfig := relay_config.GetDefaultRelayConfig()
 	programConfig.LogLevel = "debug"
 	programConfig.CreateDatachannelNamedPipes = createPipes
 	programConfig.PeerInitConfigs[0].Host = "ssrov-peerjs-server.herokuapp.com" //"0.peerjs.com"
@@ -27,10 +29,10 @@ func createCloudTestConfig(createPipes bool) WebrtcRelayConfig {
 	return programConfig
 }
 
-func createLocalTestConfig(startLocalServer bool, createPipes bool) WebrtcRelayConfig {
+func createLocalTestConfig(startLocalServer bool, createPipes bool) relay_config.WebrtcRelayConfig {
 
 	// FOR Connecting to a LOCAL PEERJS SERVER RUNNING ON THIS COMPUTER:
-	programConfig := GetDefaultRelayConfig()
+	programConfig := relay_config.GetDefaultRelayConfig()
 	programConfig.LogLevel = "debug"
 	programConfig.CreateDatachannelNamedPipes = createPipes
 	programConfig.PeerInitConfigs[0].Host = "localhost"
@@ -45,7 +47,7 @@ func createLocalTestConfig(startLocalServer bool, createPipes bool) WebrtcRelayC
 	return programConfig
 }
 
-func getPeerjsGoTestOpts(peerInitConfig *PeerInitOptions) peer.Options {
+func getPeerjsGoTestOpts(peerInitConfig *relay_config.PeerInitOptions) peer.Options {
 	opts := peer.NewOptions()
 	opts.Path = peerInitConfig.Path
 	opts.Host = peerInitConfig.Host
@@ -59,7 +61,7 @@ func getPeerjsGoTestOpts(peerInitConfig *PeerInitOptions) peer.Options {
 func TestRelayStartup(t *testing.T) {
 	// create a new relay
 	programConfig := createLocalTestConfig(true, false)
-	relay := CreateWebrtcRelay(programConfig)
+	relay := NewWebrtcRelay(programConfig)
 	go relay.Start()
 
 	<-time.After(time.Second * 50)
@@ -71,7 +73,7 @@ func TestMsgRelay(t *testing.T) {
 	// create a new relay
 	localProgramConfigWithServer := createLocalTestConfig(true, false)
 	// localProgramConfigWithServer := createCloudTestConfig(false)
-	relay := CreateWebrtcRelay(localProgramConfigWithServer)
+	relay := NewWebrtcRelay(localProgramConfigWithServer)
 	go relay.Start()
 	defer relay.Stop()
 
@@ -83,7 +85,7 @@ func TestMsgRelay(t *testing.T) {
 
 	clientPeer.On("open", func(id interface{}) {
 		clientId := id.(string)
-		relayId := relay.ConnCtrl.RelayPeers[opts.Host].GetPeerId()
+		relayId := relay.connCtrl.RelayPeers[opts.Host].GetPeerId()
 		println("Client Peer Open: ", clientId, " (Client) now connecting to ", relayId, " (Relay)")
 
 		sendingMessages := [...]string{
@@ -114,17 +116,27 @@ func TestMsgRelay(t *testing.T) {
 		"{\"SrcPeerId\":\"!Client_Peer!\",\"PeerEvent\":\"Disconnected\"}",
 	}
 	msgIndex := 0
+
+	relayEvents := relay.GetEventStream()
 	for {
 		select {
-		case msg := <-relay.RelayOutputMessageChannel:
-			println("relay1 received: " + msg)
-			assert.Equal(t, msg, expectedMessages[msgIndex])
-			if msg != expectedMessages[msgIndex] {
-				t.Logf("Expected message '%s' but got '%s'", expectedMessages[msgIndex], msg)
-			}
-			msgIndex++
-			if msgIndex == len(expectedMessages) {
-				return
+		case evt := <-relayEvents:
+			switch event := evt.Event.(type) {
+			case *proto.RelayEventStream_PeerConnected:
+				println("Relay: Peer Connected: ", event.PeerConnected.SrcPeerId)
+			case *proto.RelayEventStream_PeerDisconnected:
+				println("Relay: Peer Disconnected: ", event.PeerDisconnected.SrcPeerId)
+			case *proto.RelayEventStream_MsgRecived:
+				msg := string(event.MsgRecived.Payload)
+				println("relay1 received: " + msg)
+				assert.Equal(t, msg, expectedMessages[msgIndex])
+				if msg != expectedMessages[msgIndex] {
+					t.Logf("Expected message '%s' but got '%s'", expectedMessages[msgIndex], msg)
+				}
+				msgIndex++
+				if msgIndex == len(expectedMessages) {
+					return
+				}
 			}
 		case <-time.After(time.Second * 15):
 			t.Error("Timeout waiting for message to be recived on relay")

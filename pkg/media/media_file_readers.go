@@ -21,7 +21,7 @@ func read_h264_file(pipe *NamedPipeMediaSource) error {
 	// return read_raw_stream(pipe, 4096, H264FrameDuration)
 
 	// SMARTER IMPLEMENTATION:
-	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/src/main.go
+	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/pkg/main.go
 	// Send our video a frame at a time. Pace our sending so we send it at the same speed it should be played back as.
 	// This isn't required since the video is timestamped, but we will such much higher loss if we send all at once.
 	//
@@ -72,7 +72,7 @@ func read_h264_file(pipe *NamedPipeMediaSource) error {
 
 func read_ivf_file(pipe *NamedPipeMediaSource) error {
 
-	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/src/main.go
+	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/pkg/main.go
 	// Send our video a frame at a time. Pace our sending so we send it at the same speed it should be played back as.
 	// This isn't required since the video is timestamped, but we will such much higher loss if we send all at once.
 	//

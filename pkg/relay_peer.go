@@ -8,17 +8,21 @@ import (
 	"github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 
-	util "github.com/kw-m/webrtc-relay/src/util"
+	util "github.com/kw-m/webrtc-relay/pkg/util"
 )
 
-const RELAY_PEER_CONNECTED = "connected"
-const RELAY_PEER_CONNECTING = "connecting"
-const RELAY_PEER_RECONNECTING = "reconnecting"
-const RELAY_PEER_DISCONNECTED = "disconnected"
-const RELAY_PEER_DESTROYED = "destroyed"
+const (
+	RELAY_PEER_CONNECTED    = "connected"
+	RELAY_PEER_CONNECTING   = "connecting"
+	RELAY_PEER_RECONNECTING = "reconnecting"
+	RELAY_PEER_DISCONNECTED = "disconnected"
+	RELAY_PEER_DESTROYED    = "destroyed"
+)
 
 // RelayPeer represents a peerjs instance used by this relay.
 type RelayPeer struct {
+	//
+	relayPeerNumber uint32
 	// the WebrtcConnectionCtrl that this RelayPeer is associated with
 	connCtrl *WebrtcConnectionCtrl
 	// peerConfig: The peerjs PeerInitOptions to use for this peer
@@ -43,19 +47,21 @@ type RelayPeer struct {
 	// connectionTimeout: The cancelable timeout timer. If the peer server connection (peer open) doesn't happen before the timeout the peer is destroyed and a new peer is created.
 	connectionTimeout *time.Timer
 	// onConnection: The callback to call when a new data connection is opened to this peer
-	onConnection func(*peerjs.DataConnection)
+	onConnection func(*peerjs.DataConnection, uint32)
 	// onCall: The callback to call when a new media connection is received
-	onCall func(*peerjs.MediaConnection)
+	onCall func(*peerjs.MediaConnection, uint32)
 	// expBackoffErrorCount: The number of consecutive errors that have occurred when trying to connect to the peer server or when the connection fails
 	expBackoffErrorCount uint
 }
 
 // NewRelayPeer creates a new RelayPeer instance.
-func NewRelayPeer(connCtrl *WebrtcConnectionCtrl, peerConfig peerjs.Options, startingEndNumber uint32) *RelayPeer {
+func NewRelayPeer(connCtrl *WebrtcConnectionCtrl, peerConfig peerjs.Options, startingEndNumber uint32, relayPeerNumber uint32) *RelayPeer {
+	// stopRelaySignal: a signal that can be used to stop the relay
 	var p = RelayPeer{
 		peer:                 nil,
 		connCtrl:             connCtrl,
 		peerConfig:           peerConfig,
+		relayPeerNumber:      relayPeerNumber,
 		peerIdEndingNum:      startingEndNumber,
 		currentState:         make(chan string),
 		openDataConnections:  make(map[string]*peerjs.DataConnection),
@@ -70,7 +76,7 @@ func NewRelayPeer(connCtrl *WebrtcConnectionCtrl, peerConfig peerjs.Options, sta
 	return &p
 }
 
-func (p *RelayPeer) Start(onConnection func(*peerjs.DataConnection), onCall func(*peerjs.MediaConnection)) error {
+func (p *RelayPeer) Start(onConnection func(*peerjs.DataConnection, uint32), onCall func(*peerjs.MediaConnection, uint32)) error {
 	p.onConnection = onConnection
 	p.onCall = onCall
 	return p.createPeer()
@@ -133,7 +139,7 @@ func (p *RelayPeer) ConnectToPeer(peerId string, opts *peerjs.ConnectionOptions)
 // ----------- Private Methods -------------
 
 func (p *RelayPeer) GetRelayPeerId() string {
-	config := p.connCtrl.Relay.config
+	config := p.connCtrl.config
 	if config.UseMemorablePeerIds {
 		return config.BasePeerId + util.GetUniqueName(p.peerIdEndingNum, config.MemorablePeerIdOffset)
 	} else {
@@ -163,13 +169,13 @@ func (p *RelayPeer) createPeer() error {
 	p.peer.On("connection", func(dataConn interface{}) {
 		dataConnection := dataConn.(*peerjs.DataConnection)
 		p.addDataConnection(dataConnection)
-		p.onConnection(dataConnection)
+		p.onConnection(dataConnection, p.relayPeerNumber)
 	})
 
 	p.peer.On("call", func(mediaConn interface{}) {
 		mediaConnection := mediaConn.(*peerjs.MediaConnection)
 		p.addMediaConnection(mediaConnection)
-		p.onCall(mediaConnection)
+		p.onCall(mediaConnection, p.relayPeerNumber)
 	})
 
 	p.peer.On("error", func(err interface{}) {

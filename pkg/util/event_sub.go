@@ -1,26 +1,38 @@
 package util
 
-import "sync"
+import (
+	"sync"
+)
 
 // EventSub is a simple fan-out event subscription system using go channels.
 // based on PubSub from https://eli.thegreenplace.net/2020/pubsub-using-channels-in-go/
-
-type EventSub struct {
-	mu     sync.RWMutex
-	subs   []chan interface{}
-	closed bool
+type EventSub[Typ any] struct {
+	mu        sync.RWMutex
+	subs      []chan Typ
+	closed    bool
+	bufferAmt uint
 }
 
-func (es *EventSub) Subscribe() <-chan interface{} {
+// NewEventSub creates a new EventSub struct of the passed type with the given buffer amount
+// bufferAmt is the number of messages that can be pushed onto the event sub without subscribers reading the message(s) before the channel blocks (1 or greater is recommended)
+func NewEventSub[Typ any](bufferAmt uint) *EventSub[Typ] {
+	return &EventSub[Typ]{
+		subs:      make([]chan Typ, 0),
+		closed:    false,
+		bufferAmt: bufferAmt,
+	}
+}
+
+func (es *EventSub[Typ]) Subscribe() <-chan Typ {
 	es.mu.Lock()
 	defer es.mu.Unlock()
 
-	ch := make(chan interface{}, 1)
+	ch := make(chan Typ, es.bufferAmt)
 	es.subs = append(es.subs, ch)
 	return ch
 }
 
-func (es *EventSub) UnSubscribe(c *chan interface{}) {
+func (es *EventSub[Typ]) UnSubscribe(c *chan Typ) {
 	es.mu.Lock()
 	defer es.mu.Unlock()
 
@@ -38,7 +50,7 @@ func (es *EventSub) UnSubscribe(c *chan interface{}) {
 	}
 }
 
-func (es *EventSub) Publish(data interface{}) {
+func (es *EventSub[Typ]) Push(data Typ) {
 	es.mu.RLock()
 	defer es.mu.RUnlock()
 
@@ -51,7 +63,7 @@ func (es *EventSub) Publish(data interface{}) {
 	}
 }
 
-func (es *EventSub) Close() {
+func (es *EventSub[Typ]) Close() {
 	es.mu.Lock()
 	defer es.mu.Unlock()
 

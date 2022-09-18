@@ -1,5 +1,7 @@
 package media
 
+// DEPRICATED
+
 import (
 	"os"
 	"syscall"
@@ -7,7 +9,7 @@ import (
 
 	// "os"
 
-	"github.com/kw-m/webrtc-relay/src/util"
+	"github.com/kw-m/webrtc-relay/pkg/util"
 	webrtc "github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 )

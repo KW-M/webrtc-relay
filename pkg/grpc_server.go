@@ -6,7 +6,7 @@ import (
 	"log"
 	"net"
 
-	proto "github.com/kw-m/webrtc-relay/src/proto"
+	proto "github.com/kw-m/webrtc-relay/pkg/proto"
 	"google.golang.org/grpc"
 )
 
@@ -14,29 +14,34 @@ type RelayGRPCServer struct {
 	proto.UnimplementedWebRTCRelayServer
 }
 
-func (s *RelayGRPCServer) EventStream(*proto.EventStreamRequest, proto.WebRTCRelay_EventStreamServer) error {
+func (s *RelayGRPCServer) GetEventStream(*proto.EventStreamRequest, proto.WebRTCRelay_GetEventStreamServer) error {
 	return nil
 }
-func (s *RelayGRPCServer) Connect(ctx context.Context, req *proto.ConnectionRequest) (*proto.ConnectionResponse, error) {
+
+func (s *RelayGRPCServer) ConnectToPeer(ctx context.Context, req *proto.ConnectionRequest) (*proto.ConnectionResponse, error) {
 	return &proto.ConnectionResponse{
 		Status: proto.Status_OK,
 	}, nil
 }
-func (s *RelayGRPCServer) Disconnect(ctx context.Context, req *proto.ConnectionRequest) (*proto.ConnectionResponse, error) {
+
+func (s *RelayGRPCServer) DisconnectFromPeer(ctx context.Context, req *proto.ConnectionRequest) (*proto.ConnectionResponse, error) {
 	return &proto.ConnectionResponse{
 		Status: proto.Status_OK,
 	}, nil
 }
-func (s *RelayGRPCServer) Call(ctx context.Context, req *proto.ConnectionRequest) (*proto.ConnectionResponse, error) {
+
+func (s *RelayGRPCServer) CallPeer(ctx context.Context, req *proto.ConnectionRequest) (*proto.ConnectionResponse, error) {
 	return &proto.ConnectionResponse{
 		Status: proto.Status_OK,
 	}, nil
 }
-func (s *RelayGRPCServer) Hangup(ctx context.Context, req *proto.ConnectionRequest) (*proto.ConnectionResponse, error) {
+
+func (s *RelayGRPCServer) HangupPeer(ctx context.Context, req *proto.ConnectionRequest) (*proto.ConnectionResponse, error) {
 	return &proto.ConnectionResponse{
 		Status: proto.Status_OK,
 	}, nil
 }
+
 func (s *RelayGRPCServer) SendMsgStream(proto.WebRTCRelay_SendMsgStreamServer) error {
 	return nil
 }

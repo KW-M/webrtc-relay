@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	relayLib "github.com/kw-m/webrtc-relay/src"
+	relayLib "github.com/kw-m/webrtc-relay/pkg"
 
 	log "github.com/sirupsen/logrus"
 

@@ -1,12 +1,14 @@
 package media
 
+// DEPRICATED
+
 import (
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/kw-m/webrtc-relay/src/namedpipe"
+	"github.com/kw-m/webrtc-relay/pkg/namedpipe"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/kw-m/webrtc-relay/src/media"
+	"github.com/kw-m/webrtc-relay/pkg/media"
 	peerjs "github.com/muka/peerjs-go"
 	webrtc "github.com/pion/webrtc/v3"
 )
@@ -15,13 +15,9 @@ type MediaSource interface {
 	Close()
 }
 
-type DataConnectionInfo struct {
-	RelayPeer      *RelayPeer
-	DataConnection *peerjs.DataConnection
-	TargetPeerId   string
-}
-
-type MediaConnectionInfo struct {
+type ConnectionInfo struct {
+	RelayPeer       *RelayPeer
+	DataConnection  *peerjs.DataConnection
 	MediaConnection *peerjs.MediaConnection
 	TargetPeerId    string
 }
@@ -39,86 +35,30 @@ func generateMessageMetadataForBackend(srcPeerId string, peerEvent string, err s
 	return string(metaDataJson)
 }
 
-func parseMessageMetadataFromBackend(message string, msgMetadataSeparator string) (RelayPipeToDatachannelMetadata, string, error) {
-	// split the message into the metadata and the actual message
-	metaDataAndMessage := strings.SplitN(message, msgMetadataSeparator, 2)
+// func parseMessageMetadataFromBackend(message string, msgMetadataSeparator string) (RelayPipeToDatachannelMetadata, string, error) {
+// 	// split the message into the metadata and the actual message
+// 	metaDataAndMessage := strings.SplitN(message, msgMetadataSeparator, 2)
 
-	// set default struct values
-	metaData := RelayPipeToDatachannelMetadata{
-		Action:        "",
-		Params:        []string{},
-		TargetPeerIds: []string{"*"},
-	}
+// 	// set default struct values
+// 	metaData := RelayPipeToDatachannelMetadata{
+// 		Action:        "",
+// 		Params:        []string{},
+// 		TargetPeerIds: []string{"*"},
+// 	}
 
-	// parse the metadata json string into the RelayPipeToDatachannelMetadata struct type
-	err := json.Unmarshal([]byte(metaDataAndMessage[0]), &metaData)
-	if err != nil {
-		return metaData, "", err
-	}
+// 	// parse the metadata json string into the RelayPipeToDatachannelMetadata struct type
+// 	err := json.Unmarshal([]byte(metaDataAndMessage[0]), &metaData)
+// 	if err != nil {
+// 		return metaData, "", err
+// 	}
 
-	if len(metaDataAndMessage) == 2 {
-		actualMessage := metaDataAndMessage[1]
-		return metaData, actualMessage, nil
-	} else {
-		return metaData, "", nil
-	}
-}
-
-func getMediaConnections(targetPeerIds []string, conn *WebrtcConnectionCtrl) []MediaConnectionInfo {
-	outConns := make([]MediaConnectionInfo, 0)
-	if targetPeerIds[0] == "*" {
-		// If the action is meant for all peers, return all the peer data connections
-		for _, RelayPeer := range conn.RelayPeers {
-			for peerId, mediaConn := range RelayPeer.openMediaConnections {
-				outConns = append(outConns, MediaConnectionInfo{
-					MediaConnection: mediaConn,
-					TargetPeerId:    peerId,
-				})
-			}
-		}
-	} else {
-		// Otherwise send it to just the specified target peers:
-		for _, peerId := range targetPeerIds {
-			for _, RelayPeer := range conn.RelayPeers {
-				if mediaConn := RelayPeer.GetMediaConnection(peerId); mediaConn != nil {
-					outConns = append(outConns, MediaConnectionInfo{
-						MediaConnection: mediaConn,
-						TargetPeerId:    peerId,
-					})
-				}
-			}
-		}
-	}
-	return outConns
-}
-
-func getDataConnections(targetPeerIds []string, conn *WebrtcConnectionCtrl) []DataConnectionInfo {
-	outConns := make([]DataConnectionInfo, 0)
-	if targetPeerIds[0] == "*" {
-		// If the action is meant for all peers, return all the peer data connections
-		for _, RelayPeer := range conn.RelayPeers {
-			for peerId, dataConn := range RelayPeer.openDataConnections {
-				outConns = append(outConns, DataConnectionInfo{
-					DataConnection: dataConn,
-					TargetPeerId:   peerId,
-				})
-			}
-		}
-	} else {
-		// Otherwise send it to just the specified target peers:
-		for _, peerId := range targetPeerIds {
-			for _, RelayPeer := range conn.RelayPeers {
-				if dataConn := RelayPeer.GetDataConnection(peerId); dataConn != nil {
-					outConns = append(outConns, DataConnectionInfo{
-						DataConnection: dataConn,
-						TargetPeerId:   peerId,
-					})
-				}
-			}
-		}
-	}
-	return outConns
-}
+// 	if len(metaDataAndMessage) == 2 {
+// 		actualMessage := metaDataAndMessage[1]
+// 		return metaData, actualMessage, nil
+// 	} else {
+// 		return metaData, "", nil
+// 	}
+// }
 
 func handleConnectToPeersMsg(metaData RelayPipeToDatachannelMetadata, conn *WebrtcConnectionCtrl) {
 	// log := conn.log

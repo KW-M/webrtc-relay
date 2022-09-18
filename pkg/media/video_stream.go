@@ -20,7 +20,7 @@ import (
 
 	"time"
 
-	"github.com/kw-m/webrtc-relay/src/util"
+	"github.com/kw-m/webrtc-relay/pkg/util"
 	webrtc "github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media"
 	log "github.com/sirupsen/logrus"
@@ -128,7 +128,7 @@ func pipeVideoToStream(programShouldQuitSignal *util.UnblockSignal) error {
 	// }
 
 	// go func() {
-	// 	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/src/main.go
+	// 	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/pkg/main.go
 	// 	// Send our video a frame at a time. Pace our sending so we send it at the same speed it should be played back as.
 	// 	// This isn't required since the video is timestamped, but we will such much higher loss if we send all at once.
 

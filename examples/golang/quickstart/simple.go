@@ -4,12 +4,13 @@ import (
 	"time"
 
 	webrtc_relay "github.com/kw-m/webrtc-relay/pkg"
+	webrtc_relay_config "github.com/kw-m/webrtc-relay/pkg/config"
 )
 
 func main() {
 
 	// create a new config for the webrtc-relay, see src/consts.go for available options
-	config := webrtc_relay.GetDefaultRelayConfig()
+	config := webrtc_relay_config.GetDefaultRelayConfig()
 	config.CreateDatachannelNamedPipes = false // we don't need named pipes because this example is entirely in golang (also named pipes will compete with our for loop to read messages)
 
 	// create and start the relay
