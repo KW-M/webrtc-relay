@@ -20,7 +20,7 @@ type NamedPipeRelay struct {
 	MessagesFromPipeChannel chan string
 	readChannelBufferCount  int
 	lastErr                 error
-	exitSignal              *util.UnblockSignal
+	exitSignal              util.UnblockSignal
 	log                     *log.Entry
 }
 
@@ -132,7 +132,7 @@ type DuplexNamedPipeRelay struct {
 	outgoingPipe            *NamedPipeRelay
 	MessagesFromPipeChannel chan string
 	log                     *log.Entry
-	exitSignal              *util.UnblockSignal
+	exitSignal              util.UnblockSignal
 }
 
 func CreateDuplexNamedPipeRelay(incomingPipeFilePath string, outgoingPipeFilePath string, pipeFilePermissions uint32, readChannelBufferCount int) (*DuplexNamedPipeRelay, error) {

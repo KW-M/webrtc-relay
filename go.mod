@@ -7,6 +7,7 @@ require (
 	github.com/pion/webrtc/v3 v3.1.43
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.0
+	golang.org/x/exp v0.0.0-20220916125017-b168a2c6b86b
 	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.0
 )
@@ -44,4 +45,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/muka/peerjs-go => github.com/kw-m/peerjs-go v0.0.0-20220903010816-990600cd924f
+replace github.com/muka/peerjs-go => github.com/kw-m/peerjs-go v0.0.0-20220918234057-fac653d4489d

@@ -11,7 +11,7 @@ func main() {
 
 	// create a new config for the webrtc-relay, see src/consts.go for available options
 	config := webrtc_relay_config.GetDefaultRelayConfig()
-	config.CreateDatachannelNamedPipes = false // we don't need named pipes because this example is entirely in golang (also named pipes will compete with our loop to read messages)
+	config.StartGRPCServer = false // we don't need grpc because this example is entirely in golang (although we still will use the grpc types)
 
 	// set up the options that will be used to connect to the peerjs server
 	cloudPeerServerOptions := webrtc_relay_config.GetPeerjsCloudPeerInitOptions()
@@ -26,7 +26,7 @@ func main() {
 	}
 
 	// create and start the relay
-	relay := webrtc_relay.CreateWebrtcRelay(config)
+	relay := webrtc_relay.NewWebrtcRelay(config)
 	go relay.Start()
 	defer relay.Stop() // stop the relay when the main function exits
 
@@ -36,7 +36,7 @@ func main() {
 		ticker := time.NewTicker(time.Second * 1)
 		for {
 			<-ticker.C // wait for ticker to trigger and then send the message
-			relay.RelayInputMessageChannel <- "{ \"TargetPeers\": [\"*\"] }|\"|Relay, this is Relay do you copy? The time is " + time.Now().Local().Format(time.RFC850) + "\n"
+			// relay.RelayInputMessageChannel <- "{ \"TargetPeers\": [\"*\"] }|\"|Relay, this is Relay do you copy? The time is " + time.Now().Local().Format(time.RFC850) + "\n"
 		}
 	}()
 
@@ -44,8 +44,8 @@ func main() {
 	// note these messages will also have a metadata json string and separator string prefixed to them
 	go func() {
 		for {
-			msg := <-relay.RelayOutputMessageChannel
-			println("Got Message: " + msg)
+			// msg := <-relay.RelayOutputMessageChannel
+			// println("Got Message: " + msg)
 		}
 	}()
 

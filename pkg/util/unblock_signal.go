@@ -10,9 +10,9 @@ type UnblockSignal struct {
 	HasTriggered bool
 }
 
-func NewUnblockSignal() *UnblockSignal {
+func NewUnblockSignal() UnblockSignal {
 	p := UnblockSignal{exitSignal: make(chan bool), HasTriggered: false, err: nil}
-	return &p
+	return p
 }
 
 func (e *UnblockSignal) Trigger() {

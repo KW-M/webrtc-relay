@@ -19,6 +19,16 @@ const (
 	RELAY_PEER_DESTROYED    = "destroyed"
 )
 
+type openDataConnection struct {
+	exchangeId uint32
+	conn       *peerjs.DataConnection
+}
+
+type openMediaConnection struct {
+	exchangeId uint32
+	conn       *peerjs.MediaConnection
+}
+
 // RelayPeer represents a peerjs instance used by this relay.
 type RelayPeer struct {
 	//
@@ -40,18 +50,22 @@ type RelayPeer struct {
 	peer *peerjs.Peer
 	// currentState: The current state of this peer connection to the peer server (one of 'disconnected', 'connecting', 'connected', 'reconnecting', 'destroyed')
 	currentState chan string
-	// openDataConnections: A map of open data connections to this peer (keyed by the peerId of the connected peer)
-	openDataConnections map[string]*peerjs.DataConnection
-	// openMediaConnections: A map of open media connections to this peer (keyed by the peerId of the connected peer)
-	openMediaConnections map[string]*peerjs.MediaConnection
+	// openDataConnections: A map of open data connections to this peer (keyed by the peerId of the connected (remote) peer)
+	openDataConnections map[string]openDataConnection
+	// openMediaConnections: A map of open media connections to this peer (keyed by the peerId of the connected (remote) peer)
+	openMediaConnections map[string]openMediaConnection
 	// connectionTimeout: The cancelable timeout timer. If the peer server connection (peer open) doesn't happen before the timeout the peer is destroyed and a new peer is created.
 	connectionTimeout *time.Timer
 	// onConnection: The callback to call when a new data connection is opened to this peer
 	onConnection func(*peerjs.DataConnection, uint32)
 	// onCall: The callback to call when a new media connection is received
 	onCall func(*peerjs.MediaConnection, uint32)
+	// onError: The callback to call when an error occurs
+	onError func(peerjs.PeerError, uint32)
 	// expBackoffErrorCount: The number of consecutive errors that have occurred when trying to connect to the peer server or when the connection fails
 	expBackoffErrorCount uint
+	// savedExchangeId: The exchangeId sent with the last action associated with this relay peer, used to help the webrtc-relay user correlate errors or events with the action that caused them
+	savedExchangeId uint32
 }
 
 // NewRelayPeer creates a new RelayPeer instance.
@@ -64,8 +78,8 @@ func NewRelayPeer(connCtrl *WebrtcConnectionCtrl, peerConfig peerjs.Options, sta
 		relayPeerNumber:      relayPeerNumber,
 		peerIdEndingNum:      startingEndNumber,
 		currentState:         make(chan string),
-		openDataConnections:  make(map[string]*peerjs.DataConnection),
-		openMediaConnections: make(map[string]*peerjs.MediaConnection),
+		openDataConnections:  make(map[string]openDataConnection),
+		openMediaConnections: make(map[string]openMediaConnection),
 		connectionTimeout:    nil,
 		onConnection:         nil,
 		onCall:               nil,
@@ -76,9 +90,10 @@ func NewRelayPeer(connCtrl *WebrtcConnectionCtrl, peerConfig peerjs.Options, sta
 	return &p
 }
 
-func (p *RelayPeer) Start(onConnection func(*peerjs.DataConnection, uint32), onCall func(*peerjs.MediaConnection, uint32)) error {
+func (p *RelayPeer) Start(onConnection func(*peerjs.DataConnection, uint32), onCall func(*peerjs.MediaConnection, uint32), onError func(peerjs.PeerError, uint32)) error {
 	p.onConnection = onConnection
 	p.onCall = onCall
+	p.onError = onError
 	return p.createPeer()
 }
 
@@ -90,50 +105,72 @@ func (p *RelayPeer) GetCurrentPeer() *peerjs.Peer {
 	return p.peer
 }
 
-func (p *RelayPeer) GetOpenDataConnections() map[string]*peerjs.DataConnection {
+func (p *RelayPeer) GetSavedExchangeId() uint32 {
+	return p.savedExchangeId
+}
+
+func (p *RelayPeer) SetSavedExchangeId(exchangeId uint32) {
+	p.savedExchangeId = exchangeId
+}
+
+func (p *RelayPeer) GetOpenDataConnections() map[string]openDataConnection {
 	return p.openDataConnections
 }
 
-func (p *RelayPeer) GetOpenMediaConnections() map[string]*peerjs.MediaConnection {
+func (p *RelayPeer) GetOpenMediaConnections() map[string]openMediaConnection {
 	return p.openMediaConnections
 }
 
 func (p *RelayPeer) GetDataConnection(peerId string) *peerjs.DataConnection {
 	if dc, ok := p.openDataConnections[peerId]; ok {
-		return dc
+		return dc.conn
 	}
 	return nil
 }
 
 func (p *RelayPeer) GetMediaConnection(peerId string) *peerjs.MediaConnection {
 	if mc, ok := p.openMediaConnections[peerId]; ok {
-		return mc
+		return mc.conn
 	}
 	return nil
 }
 
-func (p *RelayPeer) CallPeer(peerId string, track webrtc.TrackLocal, opts *peerjs.ConnectionOptions) (*peerjs.MediaConnection, error) {
-	if mc, ok := p.openMediaConnections[peerId]; ok {
-		return mc, nil
+func (p *RelayPeer) CallPeer(peerId string, track webrtc.TrackLocal, opts *peerjs.ConnectionOptions, exchangeId uint32) (*peerjs.MediaConnection, error) {
+	if mc, ok := p.openMediaConnections[peerId]; ok && mc.conn.Open {
+		return mc.conn, nil
 	}
 	mc, err := p.peer.Call(peerId, track, opts)
 	if err != nil {
 		return nil, err
 	}
-	p.addMediaConnection(mc)
+	p.addMediaConnection(mc, exchangeId)
 	return mc, nil
 }
 
-func (p *RelayPeer) ConnectToPeer(peerId string, opts *peerjs.ConnectionOptions) (*peerjs.DataConnection, error) {
-	if dc, ok := p.openDataConnections[peerId]; ok {
-		return dc, nil
+func (p *RelayPeer) ConnectToPeer(peerId string, opts *peerjs.ConnectionOptions, exchangeId uint32) (*peerjs.DataConnection, error) {
+	if dc, ok := p.openDataConnections[peerId]; ok && dc.conn.Open {
+		return dc.conn, nil
 	}
 	dc, err := p.peer.Connect(peerId, opts)
 	if err != nil {
 		return nil, err
 	}
-	p.addDataConnection(dc)
+	p.addDataConnection(dc, exchangeId)
 	return dc, nil
+}
+
+func (p *RelayPeer) DisconnectFromPeer(peerId string) (error, error) {
+	dc, dcOk := p.openDataConnections[peerId]
+	mc, mcOk := p.openMediaConnections[peerId]
+	var dcErr error
+	var mcErr error
+	if dcOk && dc.conn.Open {
+		dcErr = dc.conn.Close()
+	}
+	if mcOk && mc.conn.Open {
+		mcErr = mc.conn.Close()
+	}
+	return dcErr, mcErr
 }
 
 // ----------- Private Methods -------------
@@ -147,74 +184,78 @@ func (p *RelayPeer) GetRelayPeerId() string {
 	}
 }
 
-func (p *RelayPeer) createPeer() error {
-	var err error = nil
-	p.peerConfig.Token = p.connCtrl.TokenStore.GetToken(p.peerId + "|" + p.peerConfig.Host)
-	p.peer, err = peerjs.NewPeer(p.peerId, p.peerConfig)
+func (rp *RelayPeer) createPeer() error {
+	var err error
+	rp.peerConfig.Token = rp.connCtrl.tokenStore.GetToken(rp.peerId + "|" + rp.peerConfig.Host)
+	rp.peer, err = peerjs.NewPeer(rp.peerId, rp.peerConfig)
 	if err != nil {
-		p.expBackoffErrorCount += 1
+		rp.expBackoffErrorCount += 1
 		return err
 	}
 
-	p.peer.On("open", func(id interface{}) {
-		p.log.Info("Peer open")
+	rp.peer.On("open", func(id interface{}) {
+		rp.log.Info("Peer open")
 		id = id.(string)
-		if p.peerId != id.(string) && p.peerId != "" {
-			p.log.Info("got new peerId from server")
+		if rp.peerId != id.(string) && rp.peerId != "" {
+			rp.log.Infof("Relay #%d (%s) got new/different peerId from server: %s", rp.relayPeerNumber, rp.peerConfig.Host, id)
 		}
-		p.peerId = id.(string)
-		p.onConnected()
+		rp.peerId = id.(string)
+		rp.onConnected()
 	})
 
-	p.peer.On("connection", func(dataConn interface{}) {
+	rp.peer.On("connection", func(dataConn interface{}) {
 		dataConnection := dataConn.(*peerjs.DataConnection)
-		p.addDataConnection(dataConnection)
-		p.onConnection(dataConnection, p.relayPeerNumber)
+		rp.addDataConnection(dataConnection, rp.savedExchangeId)
+		rp.onConnection(dataConnection, 0)
 	})
 
-	p.peer.On("call", func(mediaConn interface{}) {
+	rp.peer.On("call", func(mediaConn interface{}) {
 		mediaConnection := mediaConn.(*peerjs.MediaConnection)
-		p.addMediaConnection(mediaConnection)
-		p.onCall(mediaConnection, p.relayPeerNumber)
+		rp.addMediaConnection(mediaConnection, rp.savedExchangeId)
+		rp.onCall(mediaConnection, 0)
 	})
 
-	p.peer.On("error", func(err interface{}) {
+	rp.peer.On("error", func(err interface{}) {
 		pErr := err.(peerjs.PeerError)
-		p.log.Errorf("Peer error (type %s): %s", pErr.Type, pErr.Error())
+		rp.log.Errorf("RelayPeer error (type %s): %s", pErr.Type, pErr.Error())
+		rp.onError(pErr, rp.relayPeerNumber)
 		if pErr.Type == "unavailable-id" {
-			p.connCtrl.TokenStore.DiscardToken(p.peerId + "|" + p.peerConfig.Host)
-			p.peerIdEndingNum++
-			p.peerId = p.GetRelayPeerId()
-			p.log.Info("Peer id unavailable, trying new id: ", p.peerId)
-			p.recreatePeer()
-		} else if p.peer.GetDestroyed() {
-			p.expBackoffErrorCount += 1
-			p.recreatePeer()
-		} else if p.peer.GetDisconnected() {
-			p.expBackoffErrorCount += 1
-			p.onDisconnected()
+			rp.peerIdEndingNum++
+			newId := rp.GetRelayPeerId()
+			rp.log.Info("Peer id unavailable, trying new id: ", rp.peerId)
+			if err := rp.connCtrl.tokenStore.DiscardToken(rp.peerId + "|" + rp.peerConfig.Host); err != nil {
+				rp.log.Errorf("Error discarding token: %s", err)
+			}
+			rp.peerId = newId
+			rp.recreatePeer()
+		} else if rp.peer.GetDestroyed() {
+			rp.expBackoffErrorCount += 1
+			rp.recreatePeer()
+		} else if rp.peer.GetDisconnected() {
+			rp.expBackoffErrorCount += 1
+			rp.onDisconnected()
 		}
 	})
 
-	p.peer.On("disconnected", func(_ interface{}) {
-		p.onDisconnected()
+	rp.peer.On("disconnected", func(_ interface{}) {
+		rp.onDisconnected()
 	})
 
-	p.onConnecting()
+	rp.onConnecting()
 
 	return nil
 }
 
-func (p *RelayPeer) addMediaConnection(mediaConn *peerjs.MediaConnection) {
-	p.openMediaConnections[mediaConn.GetPeerID()] = mediaConn
+func (p *RelayPeer) addMediaConnection(mediaConn *peerjs.MediaConnection, exchangeId uint32) {
+	p.openMediaConnections[mediaConn.GetPeerID()] = openMediaConnection{conn: mediaConn, exchangeId: exchangeId}
 	mediaConn.On("close", func(_ interface{}) {
 		p.log.Info("Media connection closed" + mediaConn.GetPeerID())
 		delete(p.openMediaConnections, mediaConn.GetPeerID())
 	})
 }
 
-func (p *RelayPeer) addDataConnection(dataConn *peerjs.DataConnection) {
-	p.openDataConnections[dataConn.GetPeerID()] = dataConn
+func (p *RelayPeer) addDataConnection(dataConn *peerjs.DataConnection, exchangeId uint32) {
+	p.openDataConnections[dataConn.GetPeerID()] = openDataConnection{conn: dataConn, exchangeId: exchangeId}
 	dataConn.On("close", func(_ interface{}) {
 		p.log.Info("Data connection closed" + dataConn.GetPeerID())
 		delete(p.openDataConnections, dataConn.GetPeerID())
@@ -261,14 +302,15 @@ func (p *RelayPeer) onDestroyed() {
 func (p *RelayPeer) recreatePeer() {
 	p.log.Debug("Recreating peer")
 	p.onDestroyed()
-	p.createPeer()
+	if err := p.createPeer(); err != nil {
+		p.log.Error("Error (re)creating peer: ", err.Error())
+	}
 }
 
-func (p *RelayPeer) Cleanup() error {
+func (p *RelayPeer) Cleanup() {
 	if p.peer != nil {
 		p.peer.Destroy()
 	}
-	return nil
 }
 
 func (p *RelayPeer) BlockUntilPeerStateChange() string {

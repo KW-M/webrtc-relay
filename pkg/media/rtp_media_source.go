@@ -17,7 +17,7 @@ type RtpMediaSource struct {
 	MediaSource
 	listener        *net.UDPConn
 	udpAddress      *net.UDPAddr
-	exitSignal      *util.UnblockSignal
+	exitSignal      util.UnblockSignal
 	webrtcTrack     *webrtc.TrackLocalStaticRTP
 	readInterval    time.Duration
 	readBufferSize  int
@@ -86,12 +86,6 @@ func (rtpSrc *RtpMediaSource) StartMediaStream() {
 		}
 		rtpSrc.listener = listener
 
-		defer func() {
-			if err = listener.Close(); err != nil {
-				panic(err)
-			}
-		}()
-
 		mimeType := rtpSrc.webrtcTrack.Codec().MimeType
 		if mimeType == "video/h264" {
 			err = read_h264_rtp_stream(rtpSrc)
@@ -117,7 +111,7 @@ func (rtpSrc *RtpMediaSource) Close() {
 	if rtpSrc.listener != nil {
 		rtpSrc.exitSignal.Trigger()
 		if err := rtpSrc.listener.Close(); err != nil {
-			panic(err)
+			log.Error("Error closing media source rtp:", err.Error())
 		}
 	}
 }

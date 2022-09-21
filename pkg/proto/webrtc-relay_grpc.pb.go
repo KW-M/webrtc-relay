@@ -23,24 +23,32 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type WebRTCRelayClient interface {
 	// Get a stream of events from the webrtc-relay including recived messages, peer dis/connection events & errors, relay dis/connection events & errors.
+	// Events that happen as a result of an RPC call WILL BE sent on this stream with the exchangeId set to the.
 	// see the RelayEventStream type for more details - This is a server-side streaming RPC
-	// The client should send an empty EventStreamRequest message to start the stream
+	// The grpc client should send an empty EventStreamRequest message to start the stream
 	GetEventStream(ctx context.Context, in *EventStreamRequest, opts ...grpc.CallOption) (WebRTCRelay_GetEventStreamClient, error)
 	// Tell the webrtc-relay to connect to a peer
+	// If errors/events happen later because of DisconnectFromPeer(), they will get sent on the RelayEventStream with the same exchangeId as included in this rpc ConnectionRequest (not returned to this RPC call)
 	ConnectToPeer(ctx context.Context, in *ConnectionRequest, opts ...grpc.CallOption) (*ConnectionResponse, error)
 	// Tell the webrtc-relay to disconnect from a peer it has an open connection with
+	// If errors/events happen later because of DisconnectFromPeer(), they will get sent on the RelayEventStream with the same exchangeId as included in this rpc ConnectionRequest (not returned to this RPC call)
 	DisconnectFromPeer(ctx context.Context, in *ConnectionRequest, opts ...grpc.CallOption) (*ConnectionResponse, error)
 	// Tell the webrtc-relay to call a peer with a given stream name and media track
 	// can be used to initiate a call or to add a media track to an existing call (untested)
+	// If errors/events happen later because of CallPeer(), they will get sent on the RelayEventStream with the same exchangeId as included in this rpc CallRequest (not returned to this RPC call)
 	CallPeer(ctx context.Context, in *CallRequest, opts ...grpc.CallOption) (*CallResponse, error)
-	// Tell the webrtc-relay to stop the media call with a peer (does not cause relay to disconnect from the peer)
+	// Tell the webrtc-relay to stop the media call with a peer (does not cause relay to disconnect any open datachannels with the peer)
+	// If errors/events happen later because of HangupPeer(), they will get sent on the RelayEventStream with the same exchangeId as included in this rpc ConnectionRequest (not returned to this RPC call)
 	HangupPeer(ctx context.Context, in *ConnectionRequest, opts ...grpc.CallOption) (*CallResponse, error)
-	// Opens a stream to the webrtc-relay which can be used to send lots of messages to one or more connected peers with lower per-message overhead than the SendMsg() RPC call
-	// will not return errors if messages fail to send.
+	// Opens a stream to the webrtc-relay which can be used to send lots of messages to one or more connected peers.
+	// If errors/events happen because of a sending a message, they will get sent on the RelayEventStream with the same exchangeId as included in this rpc SendMsgRequest (not returned to this RPC call)
 	SendMsgStream(ctx context.Context, opts ...grpc.CallOption) (WebRTCRelay_SendMsgStreamClient, error)
-	// Send an individual message to one or more connected peers
-	// This is a unary RPC call (request -> response) and will return an error if the message could not be sent (unlike the stream version which will not return an error if some message could not be sent)
-	SendMsg(ctx context.Context, in *SendMsgRequest, opts ...grpc.CallOption) (*SendMsgResponse, error)
+	// Adds a new Relay Peer to the webrtc-relay instance, and starts it (not yet implemented)
+	AddRelayPeer(ctx context.Context, in *AddRelayRequest, opts ...grpc.CallOption) (*RelayErrorEvent, error)
+	// Stops a Relay Peer runnin in the webrtc-relay instance, and removes it from the instance (not yet implemented)
+	CloseRelayPeer(ctx context.Context, in *RelayPeerNumber, opts ...grpc.CallOption) (*RelayErrorEvent, error)
+	// Gets the config and actual peerId of the webrtc-relay instance (not yet implemented)
+	GetRelayPeerConfig(ctx context.Context, in *RelayPeerNumber, opts ...grpc.CallOption) (*RelayConfig, error)
 }
 
 type webRTCRelayClient struct {
@@ -153,9 +161,27 @@ func (x *webRTCRelaySendMsgStreamClient) CloseAndRecv() (*ConnectionResponse, er
 	return m, nil
 }
 
-func (c *webRTCRelayClient) SendMsg(ctx context.Context, in *SendMsgRequest, opts ...grpc.CallOption) (*SendMsgResponse, error) {
-	out := new(SendMsgResponse)
-	err := c.cc.Invoke(ctx, "/webrtcrelay.WebRTCRelay/SendMsg", in, out, opts...)
+func (c *webRTCRelayClient) AddRelayPeer(ctx context.Context, in *AddRelayRequest, opts ...grpc.CallOption) (*RelayErrorEvent, error) {
+	out := new(RelayErrorEvent)
+	err := c.cc.Invoke(ctx, "/webrtcrelay.WebRTCRelay/AddRelayPeer", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *webRTCRelayClient) CloseRelayPeer(ctx context.Context, in *RelayPeerNumber, opts ...grpc.CallOption) (*RelayErrorEvent, error) {
+	out := new(RelayErrorEvent)
+	err := c.cc.Invoke(ctx, "/webrtcrelay.WebRTCRelay/CloseRelayPeer", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *webRTCRelayClient) GetRelayPeerConfig(ctx context.Context, in *RelayPeerNumber, opts ...grpc.CallOption) (*RelayConfig, error) {
+	out := new(RelayConfig)
+	err := c.cc.Invoke(ctx, "/webrtcrelay.WebRTCRelay/GetRelayPeerConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -167,24 +193,32 @@ func (c *webRTCRelayClient) SendMsg(ctx context.Context, in *SendMsgRequest, opt
 // for forward compatibility
 type WebRTCRelayServer interface {
 	// Get a stream of events from the webrtc-relay including recived messages, peer dis/connection events & errors, relay dis/connection events & errors.
+	// Events that happen as a result of an RPC call WILL BE sent on this stream with the exchangeId set to the.
 	// see the RelayEventStream type for more details - This is a server-side streaming RPC
-	// The client should send an empty EventStreamRequest message to start the stream
+	// The grpc client should send an empty EventStreamRequest message to start the stream
 	GetEventStream(*EventStreamRequest, WebRTCRelay_GetEventStreamServer) error
 	// Tell the webrtc-relay to connect to a peer
+	// If errors/events happen later because of DisconnectFromPeer(), they will get sent on the RelayEventStream with the same exchangeId as included in this rpc ConnectionRequest (not returned to this RPC call)
 	ConnectToPeer(context.Context, *ConnectionRequest) (*ConnectionResponse, error)
 	// Tell the webrtc-relay to disconnect from a peer it has an open connection with
+	// If errors/events happen later because of DisconnectFromPeer(), they will get sent on the RelayEventStream with the same exchangeId as included in this rpc ConnectionRequest (not returned to this RPC call)
 	DisconnectFromPeer(context.Context, *ConnectionRequest) (*ConnectionResponse, error)
 	// Tell the webrtc-relay to call a peer with a given stream name and media track
 	// can be used to initiate a call or to add a media track to an existing call (untested)
+	// If errors/events happen later because of CallPeer(), they will get sent on the RelayEventStream with the same exchangeId as included in this rpc CallRequest (not returned to this RPC call)
 	CallPeer(context.Context, *CallRequest) (*CallResponse, error)
-	// Tell the webrtc-relay to stop the media call with a peer (does not cause relay to disconnect from the peer)
+	// Tell the webrtc-relay to stop the media call with a peer (does not cause relay to disconnect any open datachannels with the peer)
+	// If errors/events happen later because of HangupPeer(), they will get sent on the RelayEventStream with the same exchangeId as included in this rpc ConnectionRequest (not returned to this RPC call)
 	HangupPeer(context.Context, *ConnectionRequest) (*CallResponse, error)
-	// Opens a stream to the webrtc-relay which can be used to send lots of messages to one or more connected peers with lower per-message overhead than the SendMsg() RPC call
-	// will not return errors if messages fail to send.
+	// Opens a stream to the webrtc-relay which can be used to send lots of messages to one or more connected peers.
+	// If errors/events happen because of a sending a message, they will get sent on the RelayEventStream with the same exchangeId as included in this rpc SendMsgRequest (not returned to this RPC call)
 	SendMsgStream(WebRTCRelay_SendMsgStreamServer) error
-	// Send an individual message to one or more connected peers
-	// This is a unary RPC call (request -> response) and will return an error if the message could not be sent (unlike the stream version which will not return an error if some message could not be sent)
-	SendMsg(context.Context, *SendMsgRequest) (*SendMsgResponse, error)
+	// Adds a new Relay Peer to the webrtc-relay instance, and starts it (not yet implemented)
+	AddRelayPeer(context.Context, *AddRelayRequest) (*RelayErrorEvent, error)
+	// Stops a Relay Peer runnin in the webrtc-relay instance, and removes it from the instance (not yet implemented)
+	CloseRelayPeer(context.Context, *RelayPeerNumber) (*RelayErrorEvent, error)
+	// Gets the config and actual peerId of the webrtc-relay instance (not yet implemented)
+	GetRelayPeerConfig(context.Context, *RelayPeerNumber) (*RelayConfig, error)
 	mustEmbedUnimplementedWebRTCRelayServer()
 }
 
@@ -210,8 +244,14 @@ func (UnimplementedWebRTCRelayServer) HangupPeer(context.Context, *ConnectionReq
 func (UnimplementedWebRTCRelayServer) SendMsgStream(WebRTCRelay_SendMsgStreamServer) error {
 	return status.Errorf(codes.Unimplemented, "method SendMsgStream not implemented")
 }
-func (UnimplementedWebRTCRelayServer) SendMsg(context.Context, *SendMsgRequest) (*SendMsgResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendMsg not implemented")
+func (UnimplementedWebRTCRelayServer) AddRelayPeer(context.Context, *AddRelayRequest) (*RelayErrorEvent, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddRelayPeer not implemented")
+}
+func (UnimplementedWebRTCRelayServer) CloseRelayPeer(context.Context, *RelayPeerNumber) (*RelayErrorEvent, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CloseRelayPeer not implemented")
+}
+func (UnimplementedWebRTCRelayServer) GetRelayPeerConfig(context.Context, *RelayPeerNumber) (*RelayConfig, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetRelayPeerConfig not implemented")
 }
 func (UnimplementedWebRTCRelayServer) mustEmbedUnimplementedWebRTCRelayServer() {}
 
@@ -345,20 +385,56 @@ func (x *webRTCRelaySendMsgStreamServer) Recv() (*SendMsgRequest, error) {
 	return m, nil
 }
 
-func _WebRTCRelay_SendMsg_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SendMsgRequest)
+func _WebRTCRelay_AddRelayPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddRelayRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(WebRTCRelayServer).SendMsg(ctx, in)
+		return srv.(WebRTCRelayServer).AddRelayPeer(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/webrtcrelay.WebRTCRelay/SendMsg",
+		FullMethod: "/webrtcrelay.WebRTCRelay/AddRelayPeer",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WebRTCRelayServer).SendMsg(ctx, req.(*SendMsgRequest))
+		return srv.(WebRTCRelayServer).AddRelayPeer(ctx, req.(*AddRelayRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WebRTCRelay_CloseRelayPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RelayPeerNumber)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WebRTCRelayServer).CloseRelayPeer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/webrtcrelay.WebRTCRelay/CloseRelayPeer",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WebRTCRelayServer).CloseRelayPeer(ctx, req.(*RelayPeerNumber))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WebRTCRelay_GetRelayPeerConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RelayPeerNumber)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WebRTCRelayServer).GetRelayPeerConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/webrtcrelay.WebRTCRelay/GetRelayPeerConfig",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WebRTCRelayServer).GetRelayPeerConfig(ctx, req.(*RelayPeerNumber))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -387,8 +463,16 @@ var WebRTCRelay_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _WebRTCRelay_HangupPeer_Handler,
 		},
 		{
-			MethodName: "SendMsg",
-			Handler:    _WebRTCRelay_SendMsg_Handler,
+			MethodName: "AddRelayPeer",
+			Handler:    _WebRTCRelay_AddRelayPeer_Handler,
+		},
+		{
+			MethodName: "CloseRelayPeer",
+			Handler:    _WebRTCRelay_CloseRelayPeer_Handler,
+		},
+		{
+			MethodName: "GetRelayPeerConfig",
+			Handler:    _WebRTCRelay_GetRelayPeerConfig_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

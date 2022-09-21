@@ -2,41 +2,135 @@ package webrtc_relay
 
 import (
 	"github.com/kw-m/webrtc-relay/pkg/media"
+	"github.com/kw-m/webrtc-relay/pkg/proto"
 	peerjs "github.com/muka/peerjs-go"
+	"golang.org/x/exp/maps"
 )
 
-func connectToPeer(peerId string, relayPeerNumber uint32, conn *WebrtcConnectionCtrl) {
-	log := conn.log
+const ALL_RELAY_PEERS uint32 = 0
 
-	// initiate connections to the target peers specified in the metadata
-	for _, relayPeer := range conn.RelayPeers {
-		if relayPeerNumber == 0 || relayPeer.relayPeerNumber == relayPeerNumber {
-			log.Infof("Connecting to peer %s", relayPeer.peerId)
+type ConnectionInfo struct {
+	RelayPeer       *RelayPeer
+	DataConnection  *peerjs.DataConnection
+	MediaConnection *peerjs.MediaConnection
+	TargetPeerId    string
+}
 
-			dataConn, err := relayPeer.ConnectToPeer(peerId, peerjs.NewConnectionOptions())
-			if err != nil {
-				log.Error("Error connecting to peer: ", peerId, "err: ", err)
-				continue
-			}
-
-			dataConn.On("open", func(interface{}) {
-				conn.peerConnectionOpenHandler(dataConn)
-			})
-		}
-	}
-
-	if relayPeerNumber != 0 {
-		log.Warnf("Cannot connect using relayPeer number %d: The relay peer has not yet been established (is nil).", relayPeerNumber)
+func (conn *WebrtcConnectionCtrl) getRelayPeers(targetRelayPeer uint32) []*RelayPeer {
+	if targetRelayPeer == ALL_RELAY_PEERS {
+		// return all the relay peers:
+		return maps.Values(conn.RelayPeers)
+	} else {
+		// If the action is meant for one relay return that one:
+		return []*RelayPeer{conn.RelayPeers[targetRelayPeer]}
 	}
 }
 
-func streamTrackToPeers(targetPeerIds []string, trackName string, conn *WebrtcConnectionCtrl, media *media.MediaController) {
+func (conn *WebrtcConnectionCtrl) getPeerConnections(targetPeerIds []string, targetRelayPeer uint32) []ConnectionInfo {
+	outConns := make([]ConnectionInfo, 0)
+	if targetPeerIds[0] == "*" {
+		// If the action is meant for all peers, return all the peer data and/or media connections
+		for _, RelayPeer := range conn.RelayPeers {
+			if targetRelayPeer == ALL_RELAY_PEERS || RelayPeer.relayPeerNumber == targetRelayPeer {
+				for peerId := range RelayPeer.openDataConnections {
+					outConns = append(outConns, ConnectionInfo{
+						RelayPeer:       RelayPeer,
+						TargetPeerId:    peerId,
+						DataConnection:  RelayPeer.GetDataConnection(peerId),
+						MediaConnection: RelayPeer.GetMediaConnection(peerId),
+					})
+				}
+			}
+		}
+	} else {
+		// Otherwise return just the data and/or media connections for the specified target peers:
+		for _, peerId := range targetPeerIds {
+			for _, RelayPeer := range conn.RelayPeers {
+				if targetRelayPeer == ALL_RELAY_PEERS || RelayPeer.relayPeerNumber == targetRelayPeer {
+					outConns = append(outConns, ConnectionInfo{
+						RelayPeer:       RelayPeer,
+						TargetPeerId:    peerId,
+						DataConnection:  RelayPeer.GetDataConnection(peerId),
+						MediaConnection: RelayPeer.GetMediaConnection(peerId),
+					})
+				}
+			}
+		}
+	}
+	return outConns
+}
+
+func (conn *WebrtcConnectionCtrl) connectToPeer(peerId string, relayPeerNumber uint32, exchangeId uint32) {
+	log := conn.log
+
+	// initiate connections to the target peers specified in the metadata
+	for _, relayPeer := range conn.getRelayPeers(relayPeerNumber) {
+
+		// connect to the peer
+		log.Infof("Connecting to peer %s (via relay #%d)", peerId, relayPeer.relayPeerNumber)
+		dataConn, err := relayPeer.ConnectToPeer(peerId, peerjs.NewConnectionOptions(), exchangeId)
+		if err != nil {
+			log.Error("Error connecting to peer: ", peerId, "err: ", err)
+			conn.sendPeerDataConnErrorEvent(relayPeer.relayPeerNumber, peerId, proto.PeerConnErrorTypes_UNKNOWN_ERROR, err.Error())
+			continue
+		}
+
+		// wait for the connection to open:
+		dataConn.On("open", func(interface{}) {
+			conn.peerConnectionOpenHandler(dataConn, relayPeerNumber)
+		})
+	}
+}
+
+func (conn *WebrtcConnectionCtrl) disconnectFromPeer(peerId string, relayPeerNumber uint32, exchangeId uint32) {
+	log := conn.log
+
+	// disconnect from the target peers specified in the metadata
+	for _, relayPeer := range conn.getRelayPeers(relayPeerNumber) {
+		dcErr, mcErr := relayPeer.DisconnectFromPeer(peerId)
+		if dcErr != nil {
+			log.Errorf("Error closing data connection with peer %s (via relay #%d): %v", peerId, relayPeer.relayPeerNumber, mcErr)
+		}
+		if mcErr != nil {
+			log.Errorf("Error closing media connection with peer %s (via relay #%d): %v", peerId, relayPeer.relayPeerNumber, mcErr)
+		}
+	}
+}
+
+// sendMessageToPeers: Send a message (as bytes) to the specified peers
+// targetPeerIds: The peer IDs to send the message to. If the first element is "*", send to all peers.
+// relayPeerNumber: The relay peer number to send the message through. If 0, send through all relay peers.
+// msgBytes: The message to send, as bytes.
+func (conn *WebrtcConnectionCtrl) sendMessageToPeers(targetPeerIds []string, relayPeerNumber uint32, msgBytes []byte, exchangeId uint32) {
+	log := conn.log
+
+	sentCount := 0
+	peerConns := conn.getPeerConnections(targetPeerIds, relayPeerNumber)
+	for _, peerConn := range peerConns {
+		if peerConn.DataConnection != nil {
+			if relayPeerNumber == 0 || peerConn.RelayPeer.relayPeerNumber == relayPeerNumber {
+				log.Infof("Sending message to peer %s (via relay #%d)", peerConn.TargetPeerId, relayPeerNumber)
+				err := peerConn.DataConnection.Send(msgBytes, false)
+				if err != nil {
+					log.Error("Error sending message to peer: ", peerConn.TargetPeerId, "err: ", err)
+				} else {
+					sentCount++
+				}
+			}
+		} else {
+			log.Warnf("Cannot send message to peer %s (via relay #%d): The data connection has not yet been established (is nil).", peerConn.TargetPeerId, relayPeerNumber)
+			conn.sendPeerDataConnErrorEvent(peerConn.RelayPeer.relayPeerNumber, peerConn.TargetPeerId, proto.PeerConnErrorTypes_CONNECTION_NOT_OPEN, "The data connection to this peer has not yet been established.")
+		}
+	}
+}
+
+func (conn *WebrtcConnectionCtrl) streamTrackToPeers(targetPeerIds []string, relayPeerNumber uint32, trackName string, media *media.MediaController, exchangeId uint32) {
 	log := conn.log
 
 	// get the media source for the passed track name
 	trackSrc := media.GetTrack(trackName)
 
-	peerConns := conn.getPeerConnections(targetPeerIds)
+	peerConns := conn.getPeerConnections(targetPeerIds, relayPeerNumber)
 	for _, peerConn := range peerConns {
 
 		if peerConn.MediaConnection != nil {
@@ -56,130 +150,23 @@ func streamTrackToPeers(targetPeerIds []string, trackName string, conn *WebrtcCo
 		} else {
 
 			// if a media channel doesn't exist with this peer, create one by calling that peer:
-			_, err := peerConn.RelayPeer.CallPeer(peerConn.TargetPeerId, trackSrc.GetTrack(), peerjs.NewConnectionOptions())
+			_, err := peerConn.RelayPeer.CallPeer(peerConn.TargetPeerId, trackSrc.GetTrack(), peerjs.NewConnectionOptions(), exchangeId)
 			if err != nil {
-				log.Error("Error media calling client peer: ", peerConn.TargetPeerId)
+				log.Error("Error media calling remote peer: ", peerConn.TargetPeerId)
+				errorType, ok := proto.PeerConnErrorTypes_value[err.Error()]
+				if !ok {
+					errorType = int32(proto.PeerConnErrorTypes_UNKNOWN_ERROR)
+				}
+				conn.sendPeerMediaConnErrorEvent(peerConn.RelayPeer.relayPeerNumber, peerConn.TargetPeerId, proto.PeerConnErrorTypes(errorType), "Error media calling remote peer")
 			}
 
 		}
 	}
 }
 
-// func stopMediaStream(conn *WebrtcConnectionCtrl) {
-// 	// TODO: implement
-// 	// log := conn.log
-// }
+func (conn *WebrtcConnectionCtrl) stopMediaStream(media *media.MediaController, exchangeId uint32) {
+	// TODO: implement
+	log := conn.log
+	log.Warn("TODO: Implement stopMediaStream()")
 
-// func handleMessageFromBackend(message string, conn *WebrtcConnectionCtrl) {
-// 	config := conn.Relay.config
-// 	log := conn.log
-
-// 	metadata, mainMsg, err := parseMessageMetadataFromBackend(message, config.MessageMetadataSeparator)
-// 	if err != nil {
-// 		log.Error("Could not parse message metadata. Err: " + err.Error() + " Message: " + message)
-// 	}
-
-// 	if len(metadata.Action) > 0 {
-// 		log.Debug("Handling message action: " + metadata.Action)
-// 		if metadata.Action == "Media_Call_Peer" {
-// 			handleStartMediaStreamMsg(metadata, conn)
-// 		} else if metadata.Action == "Stop_Media_Call" {
-// 			handleStopMediaStreamMsg(metadata, conn)
-// 		} else if metadata.Action == "Connect" {
-// 			handleConnectToPeersMsg(metadata, conn)
-// 		}
-// 	}
-
-// 	if len(mainMsg) != 0 {
-
-// 		// Convert the message to byte array for transit through datachannel:
-// 		mainMsgBytes := []byte(mainMsg)
-
-// 		// send the message to all target peers
-// 		dataConns := getDataConnections(metadata.TargetPeerIds, conn)
-// 		for _, dataConn := range dataConns {
-// 			dataConn.DataConnection.Send(mainMsgBytes, false)
-// 		}
-// 	}
-// }
-
-//  // parse the metadata json string into a map
-//  metaData := make(map[string]interface{})
-//  err := json.Unmarshal([]byte(metaDataAndMessage[0]), &metaData)
-//  if err != nil {
-// 	 log.Error("Could not parse meta data json string: " + metaDataAndMessage[0])
-// 	 return
-//  }
-
-//  // get the target peers from the metadata
-//  targetPeers := metaData["TargetPeers"].([]interface{})
-//  if len(targetPeers) == 0 {
-// 	 log.Error("No target peers specified in message: " + message)
-// 	 return
-//  }
-
-//  // get the actual message
-//  actualMessage := metaDataAndMessage[1]
-
-//  // send the message to all target peers
-//  for _, targetPeer := range targetPeers {
-// 	 targetPeer := targetPeer.(string)
-// 	 if targetPeer == "" {
-// 		 log.Error("Target peer is empty in message: " + message)
-// 		 continue
-// 	 }
-
-// 	 // get the webrtc connection for the target peer
-// 	 targetConnection := conn.GetConnection(targetPeer)
-// 	 if targetConnection == nil {
-// 		 log.Error("Could not find webrtc connection for target peer: " + targetPeer)
-// 		 continue
-// 	 }
-
-// 	 // send the message to the target peer
-// 	 targetConnection.Send(actualMessage)
-//  }
-// }
-// }
-
-// // NewRelayApi: Creates a new WebrtcConnectionCtrl instance.
-// func NewRelayApi() *RelayApi {
-// 	return &RelayApi{
-// 		relayEventStream: util.NewEventSub[proto.RelayEventStream](1),
-// 		// MediaCtrl: media.NewMediaController(),
-// 		// ConnCtrl:  NewWebrtcConnectionCtrl(),
-// 		log: log.WithField("module", "relay_api"),
-// 	}
-// }
-
-// func (api *RelayApi) GetEventStream(*proto.EventStreamRequest) (<-chan proto.RelayEventStream, error) {
-// 	return api.relayEventStream.Subscribe(), nil
-// }
-
-// func (api *RelayApi) ConnectToPeer(req *proto.ConnectionRequest) (*proto.ConnectionResponse, error) {
-// 	return &proto.ConnectionResponse{
-// 		Status: proto.Status_OK,
-// 	}, nil
-// }
-
-// func (api *RelayApi) DisconnectFromPeer(req *proto.ConnectionRequest) (*proto.ConnectionResponse, error) {
-// 	return &proto.ConnectionResponse{
-// 		Status: proto.Status_OK,
-// 	}, nil
-// }
-
-// func (api *RelayApi) CallPeer(req *proto.ConnectionRequest) (*proto.ConnectionResponse, error) {
-// 	return &proto.ConnectionResponse{
-// 		Status: proto.Status_OK,
-// 	}, nil
-// }
-
-// func (api *RelayApi) HangupPeer(req *proto.ConnectionRequest) (*proto.ConnectionResponse, error) {
-// 	return &proto.ConnectionResponse{
-// 		Status: proto.Status_OK,
-// 	}, nil
-// }
-
-// func (api *RelayApi) SendMsgStream(proto.WebRTCRelay_SendMsgStreamServer) error {
-// 	return nil
-// }
+}

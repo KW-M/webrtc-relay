@@ -20,7 +20,7 @@ import (
 type UnixSocketRelay struct {
 	socketConnection      net.Conn
 	socketListener        net.Listener
-	exitSocketLoopsSignal *util.UnblockSignal
+	exitSocketLoopsSignal util.UnblockSignal
 	messagesToSocket      chan string
 	messagesFromSocket    chan string
 	readBufferSize        int

@@ -9,7 +9,7 @@
     "NamedPipeFolder": "./webrtc-relay-pipes/",
     "MessageMetadataSeparator": "|\"|",
     "AddMetadataToBackendMessages": true,
-    "CreateDatachannelNamedPipes": true,
+    "StartGRPCServer": true,
     "PeerInitConfigs": [
         {
             "StartLocalServer": false,

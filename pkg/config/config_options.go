@@ -42,7 +42,7 @@ type WebrtcRelayConfig struct {
 	// Whether or not the webrtc-relay should attempt to create the named pipes for data communication (set to false if you wish to send messages directly from go code)
 	// (note that regardless of this value, the datachannel message string format is the same also media channel named pipes will always be created).
 	// Default: true
-	CreateDatachannelNamedPipes bool
+	StartGRPCServer bool
 
 	// The string that goes between each message when sent through the named pipe:
 	// Default: "\n"
@@ -103,9 +103,6 @@ type PeerInitOptions struct {
 	// 3 Prints all logs (verbose).
 	Debug int8
 
-	// Retry Count of times to retry connecting to this peer server before moving on to the next peer server in the PeerInitOptions list.
-	RetryCount int
-
 	// ----------- (local peerjs server options) --------------
 	// StartLocalServer - if true, the peerjs-go module will start a local peerjs Server with the same config, and then connect to it.
 	StartLocalServer bool
@@ -140,13 +137,20 @@ func GetPeerjsCloudPeerInitOptions() PeerInitOptions {
 		Path:            "/",
 		Secure:          true,
 		Configuration: webrtc.Configuration{
-			ICEServers: []webrtc.ICEServer{{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			}},
+			ICEServers: []webrtc.ICEServer{
+				{
+					URLs: []string{"stun:stun.l.google.com:19302"},
+				},
+				{
+					URLs:           []string{"turn:eu-0.turn.peerjs.com:3478", "turn:us-0.turn.peerjs.com:3478"},
+					Username:       "peerjs",
+					Credential:     "peerjsp",
+					CredentialType: webrtc.ICECredentialTypePassword,
+				},
+			},
 			SDPSemantics: webrtc.SDPSemanticsUnifiedPlan,
 		},
 		Debug:            2,
-		RetryCount:       2,
 		StartLocalServer: false,
 	}
 }
@@ -161,11 +165,18 @@ func GetLocalServerPeerInitOptions() PeerInitOptions {
 		Path:            "/",
 		Secure:          false,
 		Debug:           2,
-		RetryCount:      2,
 		Configuration: webrtc.Configuration{
-			ICEServers:   []webrtc.ICEServer{},
+			ICEServers: []webrtc.ICEServer{
+				{
+					URLs: []string{"stun:stun.l.google.com:19302"},
+				},
+			},
 			SDPSemantics: webrtc.SDPSemanticsUnifiedPlan,
 		},
+		// Configuration: webrtc.Configuration{
+		// 	ICEServers:   []webrtc.ICEServer{}, // empty list means don't use any ice servers (use only local network / ip)
+		// 	SDPSemantics: webrtc.SDPSemanticsUnifiedPlan,
+		// },
 		// -------------------------
 		StartLocalServer: true,
 		ServerLogLevel:   "warn",
@@ -187,7 +198,7 @@ func GetDefaultRelayConfig() WebrtcRelayConfig {
 		PeerInitConfigs:                []*PeerInitOptions{&peerInitOpts},
 		NamedPipeFolder:                "/tmp/webtrc-relay-pipes/",
 		TokenPersistanceFile:           "/tmp/webtrc-relay-tokens.json",
-		CreateDatachannelNamedPipes:    true,
+		StartGRPCServer:                true,
 		MessageDelimiter:               "\n",
 		MessageMetadataSeparator:       "|\"|", // intentionally an invalid json string
 		AddMetadataToBackendMessages:   true,

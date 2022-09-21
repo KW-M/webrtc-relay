@@ -17,7 +17,7 @@ import (
 type NamedPipeMediaSource struct {
 	pipeFile       *os.File
 	pipeFilePath   string
-	exitSignal     *util.UnblockSignal
+	exitSignal     util.UnblockSignal
 	WebrtcTrack    *webrtc.TrackLocalStaticSample
 	readInterval   time.Duration
 	readBufferSize int
@@ -70,7 +70,7 @@ func (pipe *NamedPipeMediaSource) StartMediaStream() error {
 	for {
 
 		// open the media source pipe file for reading:
-		var err error = nil
+		var err error
 		pipe.pipeFile, err = os.OpenFile(pipe.pipeFilePath, os.O_RDONLY, os.ModeNamedPipe|0666)
 		if err != nil {
 			pipe.log.Error("Error opening media source named pipe:", err.Error())
@@ -79,17 +79,16 @@ func (pipe *NamedPipeMediaSource) StartMediaStream() error {
 		}
 
 		mimeType := pipe.WebrtcTrack.Codec().MimeType
-		// if mimeType == "video/h264" {
-		// 	err = read_h264(pipe)
-		// } else if mimeType == "video/x-ivf" || mimeType == "video/x-indeo" {
-		// 	err = read_ivf(pipe)
-		// } else if mimeType == "audio/ogg" {
-		// 	err = read_ogg(pipe)
-		// } else {
-		log.Debug("Unknow Media Source MimeType: " + mimeType + " sending raw stream as fallback")
-		err = read_file_raw_stream(pipe, pipe.readBufferSize, pipe.readInterval)
-
-		// }
+		if mimeType == "video/h264" {
+			err = read_h264_file(pipe)
+		} else if mimeType == "video/x-ivf" || mimeType == "video/x-indeo" {
+			err = read_ivf_file(pipe)
+		} else if mimeType == "audio/ogg" {
+			err = read_ogg_file(pipe)
+		} else {
+			log.Debug("Unknow Media Source MimeType: " + mimeType + " sending raw stream as fallback")
+			err = read_file_raw_stream(pipe, pipe.readBufferSize, pipe.readInterval)
+		}
 
 		if err != nil {
 			pipe.log.Error("Error reading media source:", err.Error())

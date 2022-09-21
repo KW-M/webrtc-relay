@@ -9,6 +9,8 @@ import (
 	"time"
 
 	relayLib "github.com/kw-m/webrtc-relay/pkg"
+	"github.com/kw-m/webrtc-relay/pkg/config"
+	"github.com/kw-m/webrtc-relay/pkg/util"
 
 	log "github.com/sirupsen/logrus"
 
@@ -30,13 +32,13 @@ func main() {
 	println("------------ Starting WebRTC Relay ----------------|")
 
 	// read the provided config file and set it to the config struct variable
-	config, err := relayLib.ReadConfigFile(configFilePath)
+	config, err := config.ReadConfigFile(configFilePath)
 	if err != nil {
 		log.Fatal("Failed to read config file: ", err)
 	}
 
 	// Create a simple boolean "channel" that we can use to signal to go subroutine functions that they should stop cleanly:
-	programShouldQuitSignal := *relayLib.NewUnblockSignal()
+	programShouldQuitSignal := util.NewUnblockSignal()
 	defer programShouldQuitSignal.Trigger()
 
 	if config.GoProfilingServerEnabled {
@@ -46,7 +48,7 @@ func main() {
 	}
 
 	// start the relay
-	relay := relayLib.CreateWebrtcRelay(config)
+	relay := relayLib.NewWebrtcRelay(config)
 	go relay.Start()
 	defer relay.Stop()
 

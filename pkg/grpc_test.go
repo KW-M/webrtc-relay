@@ -9,6 +9,7 @@ import (
 
 	context "context"
 
+	"github.com/kw-m/webrtc-relay/pkg/config"
 	proto "github.com/kw-m/webrtc-relay/pkg/proto"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
@@ -19,33 +20,60 @@ import (
 
 func TestGRPCRelay(t *testing.T) {
 	// unixPipeFilePath := "./ipcPipeTest.pipe"
-	go startRelayGRPCServer()
 
-	<-time.After(5 * time.Second)
+	// create and start the webrtc_relay:
+	config := config.GetDefaultRelayConfig()
+	config.StartGRPCServer = true
+	relay := NewWebrtcRelay(config)
+	relay.Start()
+	defer relay.Stop()
 
-	// start the grpc client
+	<-time.After(3 * time.Second)
+	println("------- relay started -------")
+
+	// start the grpc backend client
 	var conn *grpc.ClientConn
 	conn, err := grpc.Dial(":9023", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("Client: could not connect to grpc server: %s", err)
+		log.Fatalf("Backend: could not connect to grpc server: %s", err)
+	} else {
+		println("Backend: connected to grpc server")
 	}
 	defer conn.Close()
+	backend := proto.NewWebRTCRelayClient(conn)
+	go printEventStream(backend)
 
-	client := proto.NewWebRTCRelayClient(conn)
-	response, err := client.ConnectToPeer(context.Background(), &proto.ConnectionRequest{
-		PeerId: "test",
-	})
+	<-time.After(2 * time.Second)
+	println("------- grpc backend started -------")
 
-	if err != nil {
-		log.Fatalf("Client: could not call connect on grpc server: %s", err)
+	// create a test "frontend" peer:
+	peerInitConfig := config.PeerInitConfigs[0]
+	relayPeer, ok := relay.connCtrl.RelayPeers[peerInitConfig.RelayPeerNumber]
+	if !ok {
+		t.Error("Relay peer not found with number: ", peerInitConfig.RelayPeerNumber)
 	}
+	relayId := relayPeer.GetPeerId()
+	frontendPeer, _ := testWithFrontendPeer(t, relayId, peerInitConfig, false, false)
+	defer frontendPeer.Destroy()
 
+	<-time.After(2 * time.Second)
+	println("------- frontend peer started -------")
+
+	// tell the relay to connect to the frontend peer using grpc calls:
+	fmt.Printf("Backend GRPC: connecting to frontend peer... (%s) \n", frontendPeer.ID)
+	response, err := backend.ConnectToPeer(context.Background(), &proto.ConnectionRequest{
+		PeerId: frontendPeer.ID,
+	})
+	if err != nil {
+		t.Errorf("Backend: could not connect to peer: %v", err)
+	}
 	assert.Equal(t, proto.Status_OK, response.Status)
-	print("Client: Response from server")
+	fmt.Printf("Backend: Response from grpc connect call: %+v", response)
+	<-time.After(6 * time.Second)
 }
 
 func printEventStream(client proto.WebRTCRelayClient) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	req := &proto.EventStreamRequest{}
@@ -63,23 +91,25 @@ func printEventStream(client proto.WebRTCRelayClient) {
 
 		switch event := evt.Event.(type) {
 		case *proto.RelayEventStream_MsgRecived:
-			fmt.Printf("message from peer %s (via relay #%d): %s, \n", event.MsgRecived.SrcPeerId, event.MsgRecived.RelayPeerNumber, string(event.MsgRecived.Payload))
+			fmt.Printf("EVENT MSG: %s\n", event.MsgRecived.String())
 		case *proto.RelayEventStream_PeerConnected:
-			fmt.Printf("peer connected: %s (via relay #%d)\n", event.PeerConnected.SrcPeerId, event.PeerConnected.RelayPeerNumber)
+			fmt.Printf("EVENT peer connected: %s (via relay #%d, exId %d)\n", event.PeerConnected.SrcPeerId, evt.ExchangeId, event.PeerConnected.RelayPeerNumber)
 		case *proto.RelayEventStream_PeerDisconnected:
-			fmt.Printf("peer disconnected: %s (via relay #%d)\n", event.PeerDisconnected.SrcPeerId, event.PeerDisconnected.RelayPeerNumber)
+			fmt.Printf("EVENT peer disconnected: %s (via relay #%d, exId %d)\n", event.PeerDisconnected.SrcPeerId, evt.ExchangeId, event.PeerDisconnected.RelayPeerNumber)
 		case *proto.RelayEventStream_PeerCalled:
-			fmt.Printf("call from peer %s (via relay #%d)\n", event.PeerCalled.SrcPeerId, event.PeerCalled.RelayPeerNumber)
+			fmt.Printf("EVENT call from peer %s (via relay #%d, exId %d)\n", event.PeerCalled.SrcPeerId, evt.ExchangeId, event.PeerCalled.RelayPeerNumber)
 		case *proto.RelayEventStream_PeerHungup:
-			fmt.Printf("hangup from peer %s (via relay #%d)\n", event.PeerHungup.SrcPeerId, event.PeerHungup.RelayPeerNumber)
-		case *proto.RelayEventStream_PeerConnError:
-			fmt.Printf("connection error with peer %s (via relay #%d): %s\n", event.PeerConnError.SrcPeerId, event.PeerConnError.RelayPeerNumber, event.PeerConnError.Error)
+			fmt.Printf("EVENT hangup from peer %s (via relay #%d, exId %d)\n", event.PeerHungup.SrcPeerId, evt.ExchangeId, event.PeerHungup.RelayPeerNumber)
+		case *proto.RelayEventStream_PeerDataConnError:
+			fmt.Printf("EVENT peer data connection error from peer: %s (via relay #%d, exId %d) type=%s %s\n", event.PeerDataConnError.SrcPeerId, evt.ExchangeId, event.PeerDataConnError.RelayPeerNumber, event.PeerDataConnError.Type.String(), event.PeerDataConnError.Msg)
+		case *proto.RelayEventStream_PeerMediaConnError:
+			fmt.Printf("EVENT peer media connection error from peer: %s (via relay #%d, exId %d) type=%s %s\n", event.PeerMediaConnError.SrcPeerId, evt.ExchangeId, event.PeerMediaConnError.RelayPeerNumber, event.PeerMediaConnError.Type.String(), event.PeerMediaConnError.Msg)
 		case *proto.RelayEventStream_RelayError:
-			fmt.Printf("relay error: %s\n", event.RelayError.Error)
+			fmt.Printf("EVENT relay error: [type=%s] %s (exId %d)\n", event.RelayError.Type.String(), event.RelayError.Msg, evt.ExchangeId)
 		case *proto.RelayEventStream_RelayConnected:
-			fmt.Printf("relay connected: %s\n", event.RelayConnected.RelayPeerNumber)
+			fmt.Printf("EVENT relay connected: %d (exId %d)\n", event.RelayConnected.RelayPeerNumber, evt.ExchangeId)
 		case *proto.RelayEventStream_RelayDisconnected:
-			fmt.Printf("relay disconnected: %s\n", event.RelayDisconnected.RelayPeerNumber)
+			fmt.Printf("EVENT relay disconnected: %d (exId %d)\n", event.RelayDisconnected.RelayPeerNumber, evt.ExchangeId)
 		default:
 			fmt.Println("No matching operations")
 		}

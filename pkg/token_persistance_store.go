@@ -2,7 +2,6 @@ package webrtc_relay
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"os"
 
 	"github.com/muka/peerjs-go/util"
@@ -70,13 +69,7 @@ func (tps *TokenPersistanceStore) readJsonStore() error {
 		return nil // do not load from file if no file is specified
 	}
 	tps.log.Debug("Reading token persistance store from file: ", tps.tokenStoreFilePath)
-	jsonFile, err := os.Open(tps.tokenStoreFilePath)
-	if err != nil {
-		return err
-	}
-	defer jsonFile.Close()
-
-	byteValue, err := ioutil.ReadAll(jsonFile)
+	byteValue, err := os.ReadFile(tps.tokenStoreFilePath)
 	if err != nil {
 		return err
 	}
@@ -118,6 +111,8 @@ func (tps *TokenPersistanceStore) newToken(peerId string) string {
 	newToken := util.RandomToken()
 	tps.tokenMap[peerId] = newToken
 	tps.log.Debug("Created new token for peerId: ", peerId)
-	tps.writeJsonStore()
+	if err := tps.writeJsonStore(); err != nil {
+		tps.log.Error("Error writing token persistance store file: ", err.Error())
+	}
 	return newToken
 }

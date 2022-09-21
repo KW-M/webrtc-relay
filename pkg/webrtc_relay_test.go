@@ -1,6 +1,7 @@
 package webrtc_relay
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -8,42 +9,29 @@ import (
 	"github.com/kw-m/webrtc-relay/pkg/proto"
 	peer "github.com/muka/peerjs-go"
 	"github.com/muka/peerjs-go/server"
-	log "github.com/sirupsen/logrus"
+	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/assert"
 )
 
 func createCloudTestConfig(createPipes bool) relay_config.WebrtcRelayConfig {
-
 	// FOR Connecting to a LOCAL PEERJS SERVER RUNNING ON THIS COMPUTER:
 	programConfig := relay_config.GetDefaultRelayConfig()
 	programConfig.LogLevel = "debug"
-	programConfig.CreateDatachannelNamedPipes = createPipes
-	programConfig.PeerInitConfigs[0].Host = "ssrov-peerjs-server.herokuapp.com" //"0.peerjs.com"
-	programConfig.PeerInitConfigs[0].Port = 443
-	programConfig.PeerInitConfigs[0].Path = "/"
-	programConfig.PeerInitConfigs[0].Key = "peerjs"
-	programConfig.PeerInitConfigs[0].Secure = true
-	programConfig.PeerInitConfigs[0].Debug = 3
+	programConfig.StartGRPCServer = false
 	programConfig.PeerInitConfigs[0].StartLocalServer = false
-
 	return programConfig
 }
 
-func createLocalTestConfig(startLocalServer bool, createPipes bool) relay_config.WebrtcRelayConfig {
-
+func createLocalTestConfig(startLocalServer bool) relay_config.WebrtcRelayConfig {
 	// FOR Connecting to a LOCAL PEERJS SERVER RUNNING ON THIS COMPUTER:
+	localConfig := relay_config.GetLocalServerPeerInitOptions()
 	programConfig := relay_config.GetDefaultRelayConfig()
 	programConfig.LogLevel = "debug"
-	programConfig.CreateDatachannelNamedPipes = createPipes
-	programConfig.PeerInitConfigs[0].Host = "localhost"
-	programConfig.PeerInitConfigs[0].Port = 9129
-	programConfig.PeerInitConfigs[0].Path = "/"
-	programConfig.PeerInitConfigs[0].Key = "peerjs"
-	programConfig.PeerInitConfigs[0].Secure = false
-	programConfig.PeerInitConfigs[0].StartLocalServer = startLocalServer
-	programConfig.PeerInitConfigs[0].Debug = 3
-	programConfig.PeerInitConfigs[0].ServerLogLevel = "debug"
-
+	programConfig.PeerInitConfigs[0] = &localConfig
+	// programConfig.PeerInitConfigs[0].Port = 9129
+	// programConfig.PeerInitConfigs[0].ServerLogLevel = "debug"
+	// programConfig.PeerInitConfigs[0].Debug = 3
+	// programConfig.PeerInitConfigs[0].ConcurrentLimit = 0 // uncomment to restore segfault
 	return programConfig
 }
 
@@ -55,68 +43,135 @@ func getPeerjsGoTestOpts(peerInitConfig *relay_config.PeerInitOptions) peer.Opti
 	opts.Key = peerInitConfig.Key
 	opts.Secure = peerInitConfig.Secure
 	opts.Debug = peerInitConfig.Debug
+	opts.Configuration = peerInitConfig.Configuration
 	return opts
 }
 
 func TestRelayStartup(t *testing.T) {
 	// create a new relay
-	programConfig := createLocalTestConfig(true, false)
+	programConfig := createLocalTestConfig(true)
 	relay := NewWebrtcRelay(programConfig)
 	go relay.Start()
 
-	<-time.After(time.Second * 50)
+	<-time.After(time.Second * 20)
 	relay.Stop()
 }
 
-func TestMsgRelay(t *testing.T) {
-
+func TestCloudMsgRelay(t *testing.T) {
 	// create a new relay
-	localProgramConfigWithServer := createLocalTestConfig(true, false)
-	// localProgramConfigWithServer := createCloudTestConfig(false)
-	relay := NewWebrtcRelay(localProgramConfigWithServer)
-	go relay.Start()
-	defer relay.Stop()
+	cloudProgramConfig := createCloudTestConfig(true)
+	testMsgRelay(t, cloudProgramConfig)
+}
 
-	// create a "client" peer:
-	opts := getPeerjsGoTestOpts(localProgramConfigWithServer.PeerInitConfigs[0])
-	clientPeer, err := peer.NewPeer("!Client_Peer!", opts)
+func TestLocalMsgRelay(t *testing.T) {
+	// create a new relay
+	localProgramConfigWithServer := createLocalTestConfig(true)
+	testMsgRelay(t, localProgramConfigWithServer)
+}
+
+func createFrontendPeer(t *testing.T, peerInitConfig *relay_config.PeerInitOptions) *peer.Peer {
+	opts := getPeerjsGoTestOpts(peerInitConfig)
+	frontendPeer, err := peer.NewPeer("!WR_Client_Peer!", opts)
 	assert.NoError(t, err)
-	defer clientPeer.Destroy()
+	return frontendPeer
+}
 
-	clientPeer.On("open", func(id interface{}) {
+func testWithFrontendPeer(t *testing.T, relayId string, peerInitConfig *relay_config.PeerInitOptions, connectToRelay bool, mediaCallRelay bool) (*peer.Peer, [4]string) {
+	frontendPeer := createFrontendPeer(t, peerInitConfig)
+
+	frontendMessagesToSend := [...]string{
+		"from frontend to relay msg 1",
+		"from frontend to relay msg 2",
+		"from frontend to relay msg 3",
+		"begin test media call",
+	}
+
+	frontendPeer.On("open", func(id interface{}) {
 		clientId := id.(string)
-		relayId := relay.connCtrl.RelayPeers[opts.Host].GetPeerId()
-		println("Client Peer Open: ", clientId, " (Client) now connecting to ", relayId, " (Relay)")
+		opts := peer.NewConnectionOptions()
+		println("Frontend Peer Open ", clientId)
 
-		sendingMessages := [...]string{
-			"from relay to client_msg1",
-			"from relay to client_msg2",
+		if connectToRelay {
+			// connect to the relay
+			println("Frontend peer: now connecting to ", relayId, " (Relay)")
+			dataConn, err := frontendPeer.Connect(relayId, opts)
+			assert.NoError(t, err)
+			assert.NotNil(t, dataConn)
+			dataConn.On("open", func(none interface{}) {
+				println("Frontend peer: connection to relay open!")
+				for _, msg := range frontendMessagesToSend {
+					println("Frontend peer: Sending message to relay:", msg)
+					assert.NoError(t, dataConn.Send([]byte(msg), false))
+				}
+				dataConn.On("data", func(msgBytes interface{}) {
+					msg := string(msgBytes.([]byte))
+					println("Frontend peer:Got msg from relay:", msg)
+				})
+			})
+		} else {
+			// wait for relay to connect to us
+			println("Frontend peer: waiting for ", relayId, " (Relay) to connect")
+			frontendPeer.On("connection", func(dataConn interface{}) {
+				dc := dataConn.(*peer.DataConnection)
+				fmt.Printf("Frontend peer: got peer data connection! %+v\n", dc)
+				dc.On("data", func(msgBytes interface{}) {
+					msg := string(msgBytes.([]byte))
+					println("Frontend peer: Got msg from relay:", msg)
+				})
+			})
 		}
 
-		dataConn, err := clientPeer.Connect(relayId, peer.NewConnectionOptions())
-		assert.NoError(t, err)
-		assert.NotNil(t, dataConn)
-		dataConn.On("open", func(none interface{}) {
-			println("Client peer: connection to relay open!")
-			for _, msg := range sendingMessages {
-				println("Sending message from client to relay:", msg)
-				dataConn.Send([]byte(msg), false)
-			}
-		})
+		if mediaCallRelay {
+			// media call the relay
+			println("Frontend peer: media calling ", relayId, " (Relay)")
+			mediaConn, err := frontendPeer.Call(relayId, &webrtc.TrackLocalStaticSample{}, opts)
+			assert.NoError(t, err)
+			assert.NotNil(t, mediaConn)
+			mediaConn.On("stream", func(relayStream interface{}) {
+				println("Frontend peer: got media stream from relay!")
+			})
+		} else {
+			// wait for relay to media call us
+			println("Frontend peer: waiting for ", relayId, " (Relay) to media call")
+			frontendPeer.On("call", func(mediaConn interface{}) {
+				mc := mediaConn.(*peer.MediaConnection)
+				fmt.Printf("Frontend peer: got peer call! %+v\n", mc)
+			})
+		}
 	})
 
-	clientPeer.On("error", func(err interface{}) {
-		t.Error("Client Peer Error: ", err.(error).Error())
+	frontendPeer.On("error", func(err interface{}) {
+		t.Error("Frontend Peer Error: ", err.(error).Error())
 	})
 
-	expectedMessages := [...]string{
-		"{\"SrcPeerId\":\"!Client_Peer!\",\"PeerEvent\":\"Connected\"}",
-		"{\"SrcPeerId\":\"!Client_Peer!\"}|\"|from relay to client_msg1",
-		"{\"SrcPeerId\":\"!Client_Peer!\"}|\"|from relay to client_msg2",
-		"{\"SrcPeerId\":\"!Client_Peer!\",\"PeerEvent\":\"Disconnected\"}",
+	return frontendPeer, frontendMessagesToSend
+}
+
+func testMsgRelay(t *testing.T, config relay_config.WebrtcRelayConfig) {
+	// print out the passed config:
+	fmt.Printf("test webrtcRelayConfig: %+v\n", config)
+
+	// create and start the webrtc_relay:
+	relay := NewWebrtcRelay(config)
+	relay.Start()
+	defer relay.Stop()
+
+	// give the relay time to start up
+	<-time.After(time.Second * 5)
+	println("--------- Starting Client Peer ---------")
+
+	// create a test "frontend" peer:
+	peerInitConfig := config.PeerInitConfigs[0]
+	relayPeer, ok := relay.connCtrl.RelayPeers[peerInitConfig.RelayPeerNumber]
+	if !ok {
+		t.Error("Relay peer not found with number: ", peerInitConfig.RelayPeerNumber)
 	}
-	msgIndex := 0
+	relayId := relayPeer.GetPeerId()
+	frontendPeer, frontendMessagesToSend := testWithFrontendPeer(t, relayId, peerInitConfig, true, false)
+	defer frontendPeer.Destroy()
 
+	// get the relay peer's data connection:
+	msgIndex := 0
 	relayEvents := relay.GetEventStream()
 	for {
 		select {
@@ -129,12 +184,12 @@ func TestMsgRelay(t *testing.T) {
 			case *proto.RelayEventStream_MsgRecived:
 				msg := string(event.MsgRecived.Payload)
 				println("relay1 received: " + msg)
-				assert.Equal(t, msg, expectedMessages[msgIndex])
-				if msg != expectedMessages[msgIndex] {
-					t.Logf("Expected message '%s' but got '%s'", expectedMessages[msgIndex], msg)
+				assert.Equal(t, msg, frontendMessagesToSend[msgIndex])
+				if msg != frontendMessagesToSend[msgIndex] {
+					t.Logf("Expected message '%s' but got '%s'", frontendMessagesToSend[msgIndex], msg)
 				}
 				msgIndex++
-				if msgIndex == len(expectedMessages) {
+				if msgIndex == len(frontendMessagesToSend) {
 					return
 				}
 			}
@@ -142,56 +197,6 @@ func TestMsgRelay(t *testing.T) {
 			t.Error("Timeout waiting for message to be recived on relay")
 		}
 	}
-}
-
-func TestPeer(t *testing.T) {
-	relayPeerId := "go-relay-0"
-
-	// create a new relay
-	localProgramConfigWithServer := createLocalTestConfig(false, false)
-	// localProgramConfigWithServer := createCloudTestConfig(false)
-
-	// create a "client" peer:
-	opts := getPeerjsGoTestOpts(localProgramConfigWithServer.PeerInitConfigs[0])
-	clientPeer, err := peer.NewPeer("!Client_Peer!", opts)
-	assert.NoError(t, err)
-
-	// go func() {
-	// 	select {
-	// 	case relay1.RelayInputMessageChannel <- "from relay to client":
-	// 	case <-time.After(time.Second * 5):
-	// 		t.Error("Timeout waiting for message to be sent from relay to client")
-	// 	}
-	// }()
-	clientPeer.On("open", func(id interface{}) {
-		clientId := id.(string)
-		println("Client Peer Open: ", clientId, " (Client) now connecting to ", relayPeerId, " (Relay)")
-
-		sendingMessages := [...]string{
-			"from relay to client_msg1",
-			"from relay to client_msg2",
-		}
-
-		dataConn, err := clientPeer.Connect(relayPeerId, peer.NewConnectionOptions())
-		assert.NoError(t, err)
-		assert.NotNil(t, dataConn)
-		dataConn.On("open", func(none interface{}) {
-			println("Client peer: connection to relay open!")
-			for _, msg := range sendingMessages {
-				println("Sending message from client to relay:", msg)
-				dataConn.Send([]byte(msg), false)
-			}
-		})
-	})
-
-	clientPeer.On("error", func(err interface{}) {
-		t.Error("Client Peer Error: ", err.(error).Error())
-	})
-
-	<-time.After(time.Second * 30)
-	println("END OF TEST, DESTROYING CLIENT PEER")
-	panic("END OF TEST, Panicking")
-	// clientPeer.Destroy()
 }
 
 // func TestTwoRelay(t *testing.T) {
@@ -225,7 +230,7 @@ func getTestOpts(serverOpts server.Options) peer.Options {
 	opts.Host = serverOpts.Host
 	opts.Port = serverOpts.Port
 	opts.Secure = false
-	opts.Debug = 0
+	opts.Debug = 3
 	return opts
 }
 
@@ -248,7 +253,7 @@ func TestHellodWorld(t *testing.T) {
 		t.Logf("Server error: %s", err)
 		t.FailNow()
 	}
-	defer peerServer.Stop()
+	defer assert.NoError(t, peerServer.Stop())
 
 	<-time.After(10 * time.Second)
 	println("STARTING PEERS")
@@ -267,7 +272,7 @@ func TestHellodWorld(t *testing.T) {
 		conn2 := data.(*peer.DataConnection)
 		conn2.On("data", func(data interface{}) {
 			// Will print 'hi!'
-			log.Println("Received:", string(data.([]byte)))
+			println("Received:", string(data.([]byte)))
 			if string(data.([]byte)) == "hi!" {
 				done = true
 			}
@@ -278,7 +283,7 @@ func TestHellodWorld(t *testing.T) {
 	assert.NoError(t, err)
 	conn1.On("open", func(data interface{}) {
 		for {
-			conn1.Send([]byte("hi!"), false)
+			assert.NoError(t, conn1.Send([]byte("hi!"), false))
 			<-time.After(time.Millisecond * 1000)
 		}
 	})
@@ -298,7 +303,7 @@ func TestHelloWorld(t *testing.T) {
 		t.Logf("Server error: %s", err)
 		t.FailNow()
 	}
-	defer peerServer.Stop()
+	defer assert.NoError(t, peerServer.Stop())
 
 	peer1, err := peer.NewPeer(peer1Name, getTestOpts(serverOpts))
 	assert.NoError(t, err)
@@ -314,7 +319,7 @@ func TestHelloWorld(t *testing.T) {
 		conn2 := data.(*peer.DataConnection)
 		conn2.On("data", func(data interface{}) {
 			// Will print 'hi!'
-			log.Println("Received:", string(data.([]byte)))
+			println("Received:", string(data.([]byte)))
 			if string(data.([]byte)) == "hi!" {
 				done = true
 			}
@@ -325,7 +330,7 @@ func TestHelloWorld(t *testing.T) {
 	assert.NoError(t, err)
 	conn1.On("open", func(data interface{}) {
 		for {
-			conn1.Send([]byte("hi!"), false)
+			assert.NoError(t, conn1.Send([]byte("hi!"), false))
 			<-time.After(time.Millisecond * 1000)
 		}
 	})

@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -35,15 +34,8 @@ func StringToLogLevel(s string) (log.Level, error) {
 func ReadConfigFile(configFilePath string) (WebrtcRelayConfig, error) {
 	config := GetDefaultRelayConfig()
 
-	// Read the config file
-	configFile, err := os.Open(configFilePath)
-	if err != nil {
-		return config, err
-	}
-	defer configFile.Close()
-
-	// read our opened json file as a byte array.
-	jsonConfigBytes, err := ioutil.ReadAll(configFile)
+	// read our json file as a byte array.
+	jsonConfigBytes, err := os.ReadFile(configFilePath)
 	if err != nil {
 		return config, err
 	}

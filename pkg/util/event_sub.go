@@ -8,7 +8,7 @@ import (
 // based on PubSub from https://eli.thegreenplace.net/2020/pubsub-using-channels-in-go/
 type EventSub[Typ any] struct {
 	mu        sync.RWMutex
-	subs      []chan Typ
+	subs      []chan *Typ
 	closed    bool
 	bufferAmt uint
 }
@@ -17,22 +17,22 @@ type EventSub[Typ any] struct {
 // bufferAmt is the number of messages that can be pushed onto the event sub without subscribers reading the message(s) before the channel blocks (1 or greater is recommended)
 func NewEventSub[Typ any](bufferAmt uint) *EventSub[Typ] {
 	return &EventSub[Typ]{
-		subs:      make([]chan Typ, 0),
+		subs:      make([]chan *Typ, 0),
 		closed:    false,
 		bufferAmt: bufferAmt,
 	}
 }
 
-func (es *EventSub[Typ]) Subscribe() <-chan Typ {
+func (es *EventSub[Typ]) Subscribe() <-chan *Typ {
 	es.mu.Lock()
 	defer es.mu.Unlock()
 
-	ch := make(chan Typ, es.bufferAmt)
+	ch := make(chan *Typ, es.bufferAmt)
 	es.subs = append(es.subs, ch)
 	return ch
 }
 
-func (es *EventSub[Typ]) UnSubscribe(c *chan Typ) {
+func (es *EventSub[Typ]) UnSubscribe(c *chan *Typ) {
 	es.mu.Lock()
 	defer es.mu.Unlock()
 
@@ -50,7 +50,7 @@ func (es *EventSub[Typ]) UnSubscribe(c *chan Typ) {
 	}
 }
 
-func (es *EventSub[Typ]) Push(data Typ) {
+func (es *EventSub[Typ]) Push(data *Typ) {
 	es.mu.RLock()
 	defer es.mu.RUnlock()
 
