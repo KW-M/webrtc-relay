@@ -6,10 +6,9 @@
     "IncludeMessagesInLogs": true,
     "GoProfilingServerEnabled": true,
     "TokenPersistanceFile": "./webrtc-relay-tokens.json",
-    "NamedPipeFolder": "./webrtc-relay-pipes/",
-    "MessageMetadataSeparator": "|\"|",
-    "AddMetadataToBackendMessages": true,
-    "CreateDatachannelNamedPipes": true,
+    "StartGRPCServer": true,
+    "GRPCServerAddress": "http://localhost:9718",
+    "GoProfilingServerEnabled": true,
     "PeerInitConfigs": [
         {
             "StartLocalServer": false,

@@ -1,4 +1,4 @@
-package webrtc_relay
+package namedpipe
 
 import (
 	"fmt"
@@ -62,27 +62,27 @@ func TestDuplexNamedPipeRelay(t *testing.T) {
 	go duplexPipe.RunPipeLoops()
 
 	go func() {
-		<-time.After(time.Millisecond * 10)
 		var i int = 0
 		for i < 10 {
-			duplexPipe.SendMessageToPipe(fmt.Sprint(i))
+			select {
+			case msg := <-duplexPipe.MessagesFromPipeChannel:
+				println("gotMsg:", msg)
+				msgInt, err := strconv.Atoi(msg)
+				assert.NoError(t, err)
+				assert.Equal(t, i, msgInt)
+			case <-time.After(time.Millisecond * 200):
+				assert.Fail(t, "read timeout")
+			}
 			i++
-			<-time.After(time.Millisecond * 100)
 		}
 	}()
 
+	<-time.After(time.Millisecond * 10)
 	var i int = 0
 	for i < 10 {
-		select {
-		case msg := <-duplexPipe.MessagesFromPipeChannel:
-			println("gotMsg:", msg)
-			msgInt, err := strconv.Atoi(msg)
-			assert.NoError(t, err)
-			assert.Equal(t, i, msgInt)
-		case <-time.After(time.Millisecond * 200):
-			assert.Fail(t, "read timeout")
-		}
+		duplexPipe.SendMessageToPipe(fmt.Sprint(i))
 		i++
+		<-time.After(time.Millisecond * 100)
 	}
 
 	duplexPipe.Close()
@@ -99,27 +99,27 @@ func TestDuplexNamedPipeRelay2(t *testing.T) {
 	go duplexPipe.RunPipeLoops()
 
 	go func() {
-		<-time.After(time.Millisecond * 10)
 		var i int = 0
 		for i < 10 {
-			duplexPipe.SendMessageToPipe(fmt.Sprint(i))
+			select {
+			case msg := <-duplexPipe.MessagesFromPipeChannel:
+				println("gotMsg:", msg)
+				msgInt, err := strconv.Atoi(msg)
+				assert.NoError(t, err)
+				assert.Equal(t, i, msgInt)
+			case <-time.After(time.Millisecond * 200):
+				assert.Fail(t, "read timeout")
+			}
 			i++
-			<-time.After(time.Millisecond * 100)
 		}
 	}()
 
+	<-time.After(time.Millisecond * 10)
 	var i int = 0
 	for i < 10 {
-		select {
-		case msg := <-duplexPipe.MessagesFromPipeChannel:
-			println("gotMsg:", msg)
-			msgInt, err := strconv.Atoi(msg)
-			assert.NoError(t, err)
-			assert.Equal(t, i, msgInt)
-		case <-time.After(time.Millisecond * 200):
-			assert.Fail(t, "read timeout")
-		}
+		duplexPipe.SendMessageToPipe(fmt.Sprint(i))
 		i++
+		<-time.After(time.Millisecond * 100)
 	}
 
 	duplexPipe.Close()

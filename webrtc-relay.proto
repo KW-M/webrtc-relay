@@ -1,0 +1,288 @@
+syntax = "proto3";
+
+option go_package = "github.com/kw-m/webrtc-relay/proto;proto";
+// option go_package = "./";
+option java_multiple_files = true;
+option java_package = "io.webrtcrelay.proto";
+option java_outer_classname = "WebrtcRelayProto";
+
+package webrtcrelay;
+
+// Terminology:
+// - A "peer" is a peerjs peer either on relay side or on the frontend/remote side.
+// - A "relayPeer" is a peerjs peer on the relay side (can be multiple).
+// - A "remotePeer" is a peerjs peer on the frontend/remote side that is connecting/contected to the relay.
+// - A "relayPeerNumber" is a random/unique number you must include in each relay peer config when you want to set up multiple relay peers within this webrtc-relay instance (to identify each relay peer).
+// - A "relay peer id" is a peerjs peer id on the relay side.
+// - A "remote peer id" is a peerjs peer id on the frontend/remote side.
+// - A "relay Conn|ection" is the webSOCKET connection between the relay and the peerjs singnalling server.
+// - A "peer Conn|ection" is the webrtc connection between a relay peer and a remote peer.
+// - A "exchangeId" is a random/unique number you can include in most grpc calls. If some event (disconnect/hangup/error/etc) happens as a result of that grpc call, the same exchangeId will be included in the eventStream event.
+
+// usages in different languages
+// ## Python
+// pip install "betterproto[compiler]"
+// --python_betterproto_out=lib example.proto
+//
+
+// enum RelayEventTypes {
+//     MESSAGE_RECEIVED = 0; // MsgRecivedEvent
+
+//     RELAY_CONNECTED = 4; // RelayConnectionEvent
+//     RELAY_DISCONNECTED = 5; // ^ ditto
+//     RELAY_ERROR = 6; // RelayErrorEvent
+
+//     PEER_CONNECTED = 8; // PeerConnectionEvent
+//     PEER_DISCONNECTED = 9; // ^ ditto
+//     PEER_CALLED = 10; // PeerCalledEvent
+//     PEER_HUNGUP = 11; // PeerConnectionEvent
+//     PEER_CONN_ERROR = 12; // PeerConnErrorEvent
+// }
+
+
+
+enum Status {
+    OK = 0;
+    ERROR = 1;
+}
+
+enum PeerConnErrorTypes {
+    CONNECTION_CLOSED = 0;
+    UNKNOWN_ERROR = 1;
+    INVALID_RELAY_PEER_CONFIG_ID = 2;
+    INVALID_TARGET_PEERID = 3;
+    PEER_NOT_FOUND = 4;
+    CONNECTION_NOT_OPEN = 5;
+    NETWORK_ERROR = 6;
+}
+
+enum RelayErrorTypes {
+    UNKNOWN = 0;
+    INVALID_CONFIG = 1;
+    SERVER_NOT_FOUND = 2;
+    INVALID_PEERID = 3;
+    RELAY_DESTROYED = 4;
+}
+
+// enum TrackSources {
+//     BAC = 0;
+//     REMOTE = 1;
+// }
+
+message RTCPFeedback {
+	// Type is the type of feedback.
+	// see: https://draft.ortc.org/#dom-rtcrtcpfeedback
+	// valid: ack, ccm, nack, goog-remb, transport-cc
+	string Type = 1;
+
+    // The parameter value depends on the type.
+	// For example, type="nack" parameter="pli" will send Picture Loss Indicator packets.
+	string Parameter = 2;
+}
+
+// RTPCodecParameters is a sequence containing the media codecs that an RtpSender will choose from, as well as entries for RTX, RED and FEC mechanisms. This also includes the PayloadType that has been negotiated
+// https://w3c.github.io/webrtc-pc/#rtcrtpcodecparameters
+// RTPCodecCapability provides information about codec capabilities.
+// https://w3c.github.io/webrtc-pc/#dictionary-rtcrtpcodeccapability-members
+message RTPCodecParams {
+	string MimeType = 1;
+	optional uint32 ClockRate = 2;
+	optional uint32 Channels  = 3;
+	optional string SDPFmtpLine  = 4;
+	repeated RTCPFeedback RTCPFeedback = 5;
+    optional uint32 PayloadType = 6; //PayloadType identifies the format of the RTP payload and determines its interpretation by the application. Each codec in a RTP Session will have a different PayloadType See: https://tools.ietf.org/html/rfc3550#section-3
+}
+
+message TrackInfo {
+    string name = 1; // the unique ID of this track within a media stream
+    string kind = 2; // audio|video
+    RTPCodecParams codec = 3;
+    optional string rtpSourceUrl = 4; // only for tracks streamed by/from the backend (for now)
+}
+
+/// ----- Relay Event Stream Event Types -----
+
+// RelayEventStream event that is sent when a message is received from any peer connected to any relayPeer on this webrtc-relay
+message MsgRecivedEvent {
+    string srcPeerId = 1;
+    uint32 relayPeerNumber = 2;
+    bytes payload = 3;
+}
+
+// RelayEventStream event that is sent when any relayPeer on this webrtc-relay successfully (re)connects to the peerjs server it is setup to connect to
+message RelayConnectedEvent {
+    uint32 relayPeerNumber = 1;
+}
+
+// RelayEventStream event that is sent when  any relayPeer on this webrtc-relay disconnects from the peerjs server it is setup to connect to
+message RelayDisconnectedEvent {
+    uint32 relayPeerNumber = 1;
+}
+
+// RelayEventStream event that is sent when a relayPeer encounters an error
+message RelayErrorEvent {
+    uint32 relayPeerNumber = 1;
+    RelayErrorTypes type = 2;
+    string msg = 3;
+}
+
+// RelayEventStream event that is sent when a peer connects to (or is succesfully connected to by) any relayPeer on this webrtc-relay
+message PeerConnectedEvent {
+    uint32 relayPeerNumber = 1;
+    string srcPeerId = 2;
+}
+
+// RelayEventStream event that is sent when a peer disconnects from any relayPeer on this webrtc-relay
+message PeerDisconnectedEvent {
+    uint32 relayPeerNumber = 1;
+    string srcPeerId = 2;
+}
+
+// RelayEventStream event that is sent when a peer opens a media call with any relayPeer on this webrtc-relay
+message PeerCalledEvent {
+    uint32 relayPeerNumber = 1;
+    string srcPeerId = 2;
+    string streamName = 3;
+    repeated TrackInfo tracks = 4;
+    // more fields tbd
+}
+
+// RelayEventStream event that is sent when a peer hangs up an open media call with any relayPeer on this webrtc-relay
+message PeerHungupEvent {
+    uint32 relayPeerNumber = 1;
+    string srcPeerId = 2;
+}
+
+// RelayEventStream event that is sent when any data connection to a remote peer encounters an error
+message PeerDataConnErrorEvent {
+    uint32 relayPeerNumber = 1;
+    string srcPeerId = 2;
+    PeerConnErrorTypes type = 3;
+    string msg = 4;
+}
+
+// RelayEventStream event that is sent when any media connection to a remote peer encounters an error
+message PeerMediaConnErrorEvent {
+    uint32 relayPeerNumber = 1;
+    string srcPeerId = 2;
+    PeerConnErrorTypes type = 3;
+    string msg = 4;
+}
+
+message RelayEventStream {
+    optional uint32 exchangeId = 1;
+    oneof event {
+        MsgRecivedEvent msgRecived = 2;
+        RelayConnectedEvent relayConnected = 3;
+        RelayDisconnectedEvent relayDisconnected = 4;
+        RelayErrorEvent relayError = 5;
+        PeerConnectedEvent peerConnected = 8;
+        PeerDisconnectedEvent peerDisconnected = 9;
+        PeerCalledEvent peerCalled = 10;
+        PeerHungupEvent peerHungup = 11;
+        PeerDataConnErrorEvent peerDataConnError = 12;
+        PeerMediaConnErrorEvent peerMediaConnError = 13;
+    }
+}
+
+// EventStreamRequest should be sent empty (no fields used)
+message EventStreamRequest { }
+
+// ----- Unarary RPCs (request -> response)  ------
+
+message ConnectionRequest {
+    string peerId = 1;
+    optional uint32 relayPeerNumber = 2;
+    optional uint32 exchangeId = 4;
+}
+
+message ConnectionResponse {
+    Status status = 1;
+}
+
+message CallRequest {
+    repeated string targetPeerIds = 1;
+    string streamName = 2;
+    optional uint32 relayPeerNumber = 3;
+    optional uint32 exchangeId = 4;
+    repeated TrackInfo tracks = 5;
+}
+
+message CallResponse {
+    Status status = 1;
+}
+
+message HangupRequest {
+    string peerId = 2;
+    optional uint32 relayPeerNumber = 1;
+    optional uint32 exchangeId = 4;
+}
+
+message HangupResponse {
+    string peerId = 1;
+}
+
+message SendMsgRequest {
+    repeated string targetPeerIds = 1;
+    bytes payload = 2;
+    optional uint32 relayPeerNumber = 3;
+    optional uint32 exchangeId = 4;
+}
+
+message SendMsgResponse {
+    Status status = 1;
+}
+
+message RelayConfig {
+    // TBD
+}
+
+message AddRelayRequest {
+  // TBD
+}
+
+message RelayPeerNumber {
+   uint32 number = 1;
+}
+
+// rpc to interface with a running webrtc-relay
+service WebRTCRelay {
+
+  // Get a stream of events from the webrtc-relay including recived messages, peer dis/connection events & errors, relay dis/connection events & errors.
+  // Events that happen as a result of an RPC call WILL BE sent on this stream with the exchangeId set to the.
+  // see the RelayEventStream type for more details - This is a server-side streaming RPC
+  // The grpc client should send an empty EventStreamRequest message to start the stream
+  rpc GetEventStream(EventStreamRequest) returns (stream RelayEventStream) {}
+
+  // Tell the webrtc-relay to connect to a peer
+  // If errors/events happen later because of DisconnectFromPeer(), they will get sent on the RelayEventStream with the same exchangeId as included in this rpc ConnectionRequest (not returned to this RPC call)
+  rpc ConnectToPeer (ConnectionRequest) returns (ConnectionResponse) {}
+
+  // Tell the webrtc-relay to disconnect from a peer it has an open connection with
+  // If errors/events happen later because of DisconnectFromPeer(), they will get sent on the RelayEventStream with the same exchangeId as included in this rpc ConnectionRequest (not returned to this RPC call)
+  rpc DisconnectFromPeer (ConnectionRequest) returns (ConnectionResponse) {}
+
+  // Tell the webrtc-relay to call a peer with a given stream name and media track
+  // can be used to initiate a call or to add a media track to an existing call (untested)
+  // If errors/events happen later because of CallPeer(), they will get sent on the RelayEventStream with the same exchangeId as included in this rpc CallRequest (not returned to this RPC call)
+  rpc CallPeer (CallRequest) returns (CallResponse) {}
+
+  // Tell the webrtc-relay to stop the media call with a peer (does not cause relay to disconnect any open datachannels with the peer)
+  // If errors/events happen later because of HangupPeer(), they will get sent on the RelayEventStream with the same exchangeId as included in this rpc ConnectionRequest (not returned to this RPC call)
+  rpc HangupPeer (ConnectionRequest) returns (CallResponse) {}
+
+  // Opens a stream to the webrtc-relay which can be used to send lots of messages to one or more connected peers.
+  // If errors/events happen because of a sending a message, they will get sent on the RelayEventStream with the same exchangeId as included in this rpc SendMsgRequest (not returned to this RPC call)
+  rpc SendMsgStream(stream SendMsgRequest) returns (ConnectionResponse) {} // stream of messages format (recommened, should have lower latency)
+
+  // ========== Unimplemented ==============
+
+  // Adds a new Relay Peer to the webrtc-relay instance, and starts it (not yet implemented)
+  rpc AddRelayPeer (AddRelayRequest) returns (RelayErrorEvent) {} // TODO: AddRelay format
+
+  // Stops a Relay Peer runnin in the webrtc-relay instance, and removes it from the instance (not yet implemented)
+  rpc CloseRelayPeer (RelayPeerNumber) returns (RelayErrorEvent) {} // TODO: AddRelay format
+
+  // Gets the config and actual peerId of the webrtc-relay instance (not yet implemented)
+  rpc GetRelayPeerConfig (RelayPeerNumber) returns (RelayConfig) {} // TODO: AddRelay format
+}

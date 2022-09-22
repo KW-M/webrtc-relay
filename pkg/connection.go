@@ -1,267 +1,94 @@
 package webrtc_relay
 
 import (
-	"fmt"
-	"strconv"
 	"time"
 
+	relay_config "github.com/kw-m/webrtc-relay/pkg/config"
+	"github.com/kw-m/webrtc-relay/pkg/proto"
+	"github.com/kw-m/webrtc-relay/pkg/util"
 	peerjs "github.com/muka/peerjs-go"
 	peerjsServer "github.com/muka/peerjs-go/server"
+	"github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 )
-
-type MediaTrackData struct {
-	Track       *peerjs.MediaStreamTrack // the media track
-	MediaSource *RtpMediaSource          // the source handler of the media track
-	// ConsumerPeerIds []string                 // list of peer ids that are reciving this stream through a media channel
-}
 
 // WebrtcConnectionCtrl: This is the main controller in charge of maintaining an open peer and accepting/connecting to other peers.
 // While the fields here are public, they are NOT meant to be modified by the user, do so at your own risk.
 type WebrtcConnectionCtrl struct {
-	// the Relay that this connection controller is associated with
-	Relay *WebrtcRelay
-	// To handle the case where multiple relays are running at the same time,
-	// we make the PeerId of this ROBOT the BasePeerId plus this number tacked on
-	// the end (eg: relay-0) that we increment if the current peerId is already taken (relay-1, relay-2, etc..)
-	RelayPeerIdEndingNum int
-	// the current peer object associated with this WebrtcConnectionCtrl:
-	CurrentRelayPeer *peerjs.Peer
-	// map of all open peer datachannels connected to this relay (key is the peerId of the client)
-	ActiveDataConnectionsToThisRelay map[string]*peerjs.DataConnection
-	// map of all open peer mediachannels connected to this relay (key is the peerId of the client)
-	ActiveMediaConnectionsToThisRelay map[string]*peerjs.MediaConnection
-	// map of media streams being broadcast to this relay (key is the stream name)
-	MediaSources map[string]*RtpMediaSource
+	// map of relayPeers owned by this WebrtcConnectionCtrl (key is the RelayPeerNumber specified in the peerInitConfig or when calling addRelayPeer())
+	RelayPeers map[uint32]*RelayPeer
+	// the config for this WebrtcRelay
+	config relay_config.WebrtcRelayConfig
 	// The (json) store used to keep peer server tokens between sessions
-	TokenStore *TokenPersistanceStore
+	tokenStore *TokenPersistanceStore
+	// eventStream is the eventSub that this controller should push events to
+	eventStream *util.EventSub[proto.RelayEventStream]
 	// the log for this WebrtcConnectionCtrl
 	log *log.Entry
+	// StopSignal is a signal that can be used to stop the WebrtcConnectionCtrl
+	stopSignal util.UnblockSignal
 }
 
-func CreateWebrtcConnectionCtrl(relay *WebrtcRelay) *WebrtcConnectionCtrl {
+func NewWebrtcConnectionCtrl(eventStream *util.EventSub[proto.RelayEventStream], config relay_config.WebrtcRelayConfig, logger *log.Logger) *WebrtcConnectionCtrl {
 	return &WebrtcConnectionCtrl{
-		Relay:                            relay,
-		MediaSources:                     make(map[string]*RtpMediaSource),
-		ActiveDataConnectionsToThisRelay: make(map[string]*peerjs.DataConnection),
-		CurrentRelayPeer:                 nil, // &peerjs.Peer{}  nil equivalent of the peerjs.Peer struct
-		TokenStore:                       NewTokenPersistanceStore(relay),
-		log:                              relay.Log.WithFields(log.Fields{"src": "WebrtcConnectionCtrl"}),
+		config:      config,
+		RelayPeers:  make(map[uint32]*RelayPeer),
+		tokenStore:  NewTokenPersistanceStore(config.TokenPersistanceFile, logger),
+		eventStream: eventStream,
+		log:         logger.WithFields(log.Fields{"mod": "ConnCtrl"}),
+		stopSignal:  util.NewUnblockSignal(),
 	}
 }
 
-func (conn *WebrtcConnectionCtrl) GetRelayPeerId() string {
-	log.Infof("UseMemorablePeerIds: %t", conn.Relay.config.UseMemorablePeerIds)
-	if conn.Relay.config.UseMemorablePeerIds {
-		return conn.Relay.config.BasePeerId + getUniqueName(uint32(conn.RelayPeerIdEndingNum), uint32(conn.Relay.config.MemorablePeerIdOffset))
+// AddRelayPeer creates a new peerjs peer and connects it to the specified peer server based on the passed config
+// the peer will get added to the list of peers that this connection controller is managing.
+// call stopRelayPeer() to stop the peer.
+func (conn *WebrtcConnectionCtrl) AddRelayPeer(opts *relay_config.PeerInitOptions, exchangeId uint32) {
+	if opts == nil || opts.RelayPeerNumber == 0 {
+		conn.log.Error("AddRelayPeer: invalid config! Make sure the config has a unique RelayPeerNumber greater than 0.")
+	}
+
+	// start a local peerjs server if it is enabled for this PeerInitConfig
+	if opts.StartLocalServer {
+		peerServerOptions := relay_config.PeerServerOptsFromInitOpts(opts)
+		go conn.startLocalPeerJsServer(peerServerOptions)
+		<-time.After(time.Second * 2) // wait a second to let the server start up
+		println("---2---")
+	}
+
+	// start the RelayPeer for this PeerInitConfig
+	peerOptions := relay_config.PeerOptsFromInitOpts(opts)
+	go conn.setupRelayPeer(&peerOptions, opts.RelayPeerNumber, exchangeId)
+}
+
+// StopRelayPeer: stops the relay peer with the specified relayPeerNumber and removes it from the list of peers this connection controller is managing.
+func (conn *WebrtcConnectionCtrl) StopRelayPeer(relayPeerNumber uint32, exchangeId uint32) {
+	relayPeer := conn.RelayPeers[relayPeerNumber]
+	if relayPeer == nil {
+		conn.log.Warnf("StopRelayPeer: no relay peer with number %d found!", relayPeerNumber)
 	} else {
-		return conn.Relay.config.BasePeerId + strconv.Itoa(conn.RelayPeerIdEndingNum)
+		relayPeer.Cleanup()
+		delete(conn.RelayPeers, relayPeerNumber)
 	}
+	conn.log.Warn("TODO:!! - StopRelayPeer: stop relay server if it was started by this relay")
 }
 
-func (conn *WebrtcConnectionCtrl) GetActiveDataConnection(peerid string) *peerjs.DataConnection {
-	if dataConn, found := conn.ActiveDataConnectionsToThisRelay[peerid+"::"+conn.Relay.config.PeerInitConfigs[0].Host]; found {
-		return dataConn
-	} else {
-		return nil
-	}
-}
-
-func (conn *WebrtcConnectionCtrl) SendMessageToBackend(message string) {
-	select {
-	case conn.Relay.RelayOutputMessageChannel <- message:
-	default:
-		conn.log.Error("SendMessageToBackend: Go channel is full!")
-	}
-}
-
-/* forwards the passed message string (coming from the client/browser via the datachannel) to the backend (named pipe or go code) */
-func (conn *WebrtcConnectionCtrl) handleIncomingDatachannelMessage(message string, relayPeer *peerjs.Peer, clientPeerId string, clientPeerDataConnection *peerjs.DataConnection, log *log.Entry) {
-	if conn.Relay.config.AddMetadataToBackendMessages {
-		var metadata string = generateMessageMetadataForBackend(clientPeerId, "", "")
-		message = metadata + conn.Relay.config.MessageMetadataSeparator + message
-	}
-	// send a message down the named pipe containing the metadata plus the message from the client peer
-	conn.SendMessageToBackend(message)
-}
-
-/* handle forwarding messages from the named pipe to the client/browser (via the datachannel) */
-func (conn *WebrtcConnectionCtrl) handleMessagesFromBackend() {
-	for {
-		select {
-		case msgFromBackend := <-conn.Relay.RelayInputMessageChannel:
-			handleMessageFromBackend(msgFromBackend, conn)
-		case <-conn.Relay.stopRelaySignal.GetSignal():
-			conn.log.Debug("Exiting handleMessagesFromBackend loop.")
-			return
-		}
-	}
-}
-
-/* getNextPeerServerOptions (non-blocking function)
- * Given the parameter number of "tries" to sucessfully connect to a peerjs server, this function will return a new set of peerServerOptions, that can be used to try to establish a peer server connection
- * This function will return the next set of peerServerOptions immediately.
+/* startLocalPeerJsServer starts up a local PeerJs SERVER on this computer. This can be used when no internet access is available or you don't want requests leaving the local network.
  */
-func (conn *WebrtcConnectionCtrl) getNextPeerServerOptions(tries int) (*peerjs.Options, *peerjsServer.Options, bool) {
-	var peerOptionsConfig = conn.Relay.config.PeerInitConfigs[tries%len(conn.Relay.config.PeerInitConfigs)]
-
-	log.Print("using peerjs Host: ", peerOptionsConfig.Host)
-
-	var peerOptions = peerjs.NewOptions()
-	peerOptions.Host = peerOptionsConfig.Host
-	peerOptions.Port = peerOptionsConfig.Port
-	peerOptions.Path = peerOptionsConfig.Path
-	peerOptions.Secure = peerOptionsConfig.Secure
-	peerOptions.Key = peerOptionsConfig.Key
-	peerOptions.Debug = peerOptionsConfig.Debug
-	// peerOptions.Token = peerOptionsConfig.Token
-	peerOptions.Configuration = peerOptionsConfig.Configuration
-
-	if peerOptionsConfig.StartLocalServer {
-		var peerServerOptions = peerjsServer.NewOptions()
-		peerServerOptions.LogLevel = peerOptionsConfig.ServerLogLevel
-		peerServerOptions.Host = peerOptionsConfig.Host
-		peerServerOptions.Port = peerOptionsConfig.Port
-		peerServerOptions.Path = peerOptionsConfig.Path
-		peerServerOptions.Key = peerOptionsConfig.Key
-		peerServerOptions.ExpireTimeout = peerOptionsConfig.ExpireTimeout
-		peerServerOptions.AliveTimeout = peerOptionsConfig.AliveTimeout
-		peerServerOptions.AllowDiscovery = peerOptionsConfig.AllowDiscovery
-		peerServerOptions.ConcurrentLimit = peerOptionsConfig.ConcurrentLimit
-		peerServerOptions.CleanupOutMsgs = peerOptionsConfig.CleanupOutMsgs
-		return &peerOptions, &peerServerOptions, true
-	}
-
-	return &peerOptions, &peerjsServer.Options{}, false // returns nil equivalent for peerServerOptions
-}
-
-/* startLocalPeerJsServer (blocking goroutine)
- * This function starts up a local PeerJs SERVER on this computer. This can be used when no external internet access is available.
- * This function is blocking and will not return until Relay.stopRelaySignal is triggered or a panic in the server occurs.
- */
-func (conn *WebrtcConnectionCtrl) StartLocalPeerJsServer(serverOptions peerjsServer.Options) {
+func (conn *WebrtcConnectionCtrl) startLocalPeerJsServer(serverOptions peerjsServer.Options) *peerjsServer.PeerServer {
+	var server *peerjsServer.PeerServer
 	for {
-		server := peerjsServer.New(serverOptions)
-		defer server.Stop()
+		log.Debugf("Starting local peerjs server... ServerConfig: %+v", serverOptions)
+		server = peerjsServer.New(serverOptions)
 		if err := server.Start(); err != nil {
 			log.Printf("Error starting local peerjs server: %s", err)
 			time.Sleep(time.Second * 1)
 			continue
 		}
-
-		// wait for the Relay.stopRelaySignal channel to be closed at which point this function will exit and the local peerjs server will stop beacuse of the defer server.stop() function
-		conn.Relay.stopRelaySignal.Wait()
-		return
+		break
 	}
-}
 
-/* StartPeerServerConnectionLoop (blocking goroutine)
- * This function sets up the loops that will keep restarting setupRelayPeer(), whenever it exits (exept if Relay.stopRelaySignal is triggered)
- * this loop also handles specific errors like offline relay state, by switching to offline mode, and peer id taken, by incrementing the peerid postfix number before trying again.
- * This function is blocking and will not return until the peer connection fails (with the error) or Relay.stopRelaySignal is triggered.
- */
-func (conn *WebrtcConnectionCtrl) StartPeerServerConnectionLoop() {
-	peerServerConnectionTries := 0
-	peerOptions, peerServerOptions, startLocalServer := conn.getNextPeerServerOptions(peerServerConnectionTries)
-
-	go func() {
-		for {
-			select {
-			case <-conn.Relay.stopRelaySignal.GetSignal():
-				log.Println("Closing down webrtc connection loop.")
-				return
-			default:
-				if startLocalServer {
-					log.Debug("Starting local peerjs server... ServerConfig: ", peerServerOptions)
-					go conn.StartLocalPeerJsServer(*peerServerOptions)
-				}
-				<-time.After(time.Second * 1)
-				conn.ActiveDataConnectionsToThisRelay = make(map[string]*peerjs.DataConnection)
-				log.Debug("Connecting to peerjs server... PeerConfig: ", peerOptions)
-				err := conn.setupRelayPeer(peerOptions, conn.Relay.stopRelaySignal)
-				if e, ok := err.(peerjs.PeerError); ok {
-					errorType := e.Type
-					if errorType == "unavailable-id" {
-						log.Printf("Peer id is unavailable. Switching to next peer id end number...\n")
-						conn.TokenStore.DiscardToken(conn.GetRelayPeerId())
-						conn.RelayPeerIdEndingNum++ // increment the peer id ending integer
-					}
-					if errorType == "network" {
-						log.Printf("Peerjs server is unavailable, switching to next peer server\n")
-						peerServerConnectionTries++ // increment the peer id ending integer
-						peerOptions, peerServerOptions, startLocalServer = conn.getNextPeerServerOptions(peerServerConnectionTries)
-					}
-				}
-			}
-		}
-	}()
-
-	// Relay all messages recived from the named message pipe to all connected peers (unless the message metadata dictates which peers to send the message to)
-	go conn.handleMessagesFromBackend()
-
-	conn.Relay.stopRelaySignal.Wait() // wait for the quitSignal channel to be triggered at which point this goroutine can exit
-}
-
-/* peerConnectionOpenHandler (non-blocking function)
- * This function sets up the event listeners for the relayPeer object that accept new webrtc peer connections to the relay and handle errors & sutch
- * This loop also handles specific errors like offline relay state, by switching to offline mode, and peer id taken, by incrementing the peerid postfix number before trying again.
- * This function should be called within the peer.On("open",) function of the relayPeer object.
- * This function DOES NOT block, BUT the passed relayPeer parameter MUST NOT GO OUT OF SCOPE, or the event listeners will be garbage collected and (maybe) closed.
- */
-func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(clientPeerDataConnection *peerjs.DataConnection, peerServerOpts peerjs.Options) {
-	var clientPeerId string = clientPeerDataConnection.GetPeerID()
-
-	log := conn.log.WithField("peer", conn.CurrentRelayPeer.ID)
-	log.Info("Peer is connecting to relay... peer id: ", clientPeerDataConnection.GetPeerID())
-
-	clientPeerDataConnection.On("open", func(interface{}) {
-		log.Info("Peer connection established with Peer ID: ", clientPeerDataConnection.GetPeerID())
-		// add this newly open peer connection to the map of active connections
-		conn.ActiveDataConnectionsToThisRelay[clientPeerId+"::"+peerServerOpts.Host] = clientPeerDataConnection
-
-		// send a metadata message down the named message pipe that a new peer has connected
-		if conn.Relay.config.AddMetadataToBackendMessages {
-			msg := generateMessageMetadataForBackend(clientPeerId, "Connected", "")
-			conn.SendMessageToBackend(msg)
-		}
-
-		// handle incoming messages from this client peer
-		clientPeerDataConnection.On("data", func(msgBytes interface{}) {
-			var msgString string = string(msgBytes.([]byte))
-			conn.handleIncomingDatachannelMessage(msgString, conn.CurrentRelayPeer, clientPeerId, clientPeerDataConnection, log)
-		})
-
-	})
-
-	clientPeerDataConnection.On("close", func(message interface{}) {
-		log.Info("CLIENT PEER DATACHANNEL CLOSE EVENT", message)
-		delete(conn.ActiveDataConnectionsToThisRelay, clientPeerId+"::"+peerServerOpts.Host) // remove this connection from the map of active connections
-
-		// send a metadata message down the named message pipe that this peer connection has been closed
-		if conn.Relay.config.AddMetadataToBackendMessages {
-			msg := generateMessageMetadataForBackend(clientPeerId, "Closed", "")
-			conn.SendMessageToBackend(msg)
-		}
-	})
-
-	clientPeerDataConnection.On("disconnected", func(message interface{}) {
-		log.Info("CLIENT PEER DATACHANNEL DISCONNECTED EVENT", message)
-
-		// send a metadata message down the named message pipe that this peer has disconnected
-		if conn.Relay.config.AddMetadataToBackendMessages {
-			msg := generateMessageMetadataForBackend(clientPeerId, "Disconnected", "")
-			conn.SendMessageToBackend(msg)
-		}
-	})
-
-	clientPeerDataConnection.On("error", func(message interface{}) {
-		errMessage := message.(error).Error()
-		log.Error("CLIENT PEER DATACHANNEL ERROR EVENT: ", errMessage)
-		if conn.Relay.config.AddMetadataToBackendMessages {
-			msg := generateMessageMetadataForBackend(clientPeerId, "Error", errMessage)
-			conn.SendMessageToBackend(msg)
-		}
-	})
+	return server
 }
 
 /* setupRelayPeer (blocking goroutine)
@@ -271,77 +98,156 @@ func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(clientPeerDataConnec
  * This function also handles the "error", "disconnected" and "closed" events for the peerjs server connection.
  * This function is blocking and will not return until the peer connection fails (with the error) or Relay.stopRelaySignal is triggered.
  */
-func (conn *WebrtcConnectionCtrl) setupRelayPeer(peerOptions *peerjs.Options, stopRelaySignal *UnblockSignal) error {
-	exitFuncSignal := NewUnblockSignal()
+func (conn *WebrtcConnectionCtrl) setupRelayPeer(peerOptions *peerjs.Options, relayPeerNumber uint32, exchangeId uint32) {
+	// create a new RelayPeer class and add it to the map of relayPeers
+	relayPeer := NewRelayPeer(conn, *peerOptions, 0, relayPeerNumber)
+	conn.RelayPeers[relayPeerNumber] = relayPeer
+	relayPeer.SetSavedExchangeId(exchangeId)
 
-	var relayPeerId string = conn.GetRelayPeerId()
-	peerOptions.Token = conn.TokenStore.GetToken(relayPeerId)
-
-	// setup logrus logger
-	relayConnLog := log.WithFields(log.Fields{"peer": relayPeerId, "peerServer": peerOptions.Host})
-
-	// establish peer with peerjs server
-	var relayPeer, err = peerjs.NewPeer(relayPeerId, *peerOptions)
-	log.Info("Setting up connection to peerjs server: " + peerOptions.Host + ":" + strconv.Itoa(peerOptions.Port) + peerOptions.Path)
-	fmt.Printf("relayPeer.GetSocket(): %v\n", relayPeer.GetSocket())
-	defer func() { // func to run when setupWebrtcConnection function exits (either normally or because of a panic)
-		if relayPeer != nil && !relayPeer.GetDestroyed() {
-			relayPeer.Close() // close this peer (including peer server connection)
+	go func() {
+		for {
+			select {
+			case state := <-relayPeer.currentState:
+				if state == RELAY_PEER_CONNECTING {
+					conn.log.Infof("RelayPeer %d (%s) is now connecting.", relayPeerNumber, peerOptions.Host)
+				} else if state == RELAY_PEER_CONNECTED {
+					conn.log.Infof("RelayPeer %d (%s) is now connected.", relayPeerNumber, peerOptions.Host)
+					conn.sendRelayConnectedEvent(relayPeerNumber)
+				} else if state == RELAY_PEER_DISCONNECTED {
+					conn.log.Infof("RelayPeer %d (%s) is now disconnected.", relayPeerNumber, peerOptions.Host)
+					conn.sendRelayDisconnectedEvent(relayPeerNumber)
+				} else if state == RELAY_PEER_RECONNECTING {
+					conn.log.Infof("RelayPeer %d (%s) is now reconnecting.", relayPeerNumber, peerOptions.Host)
+				} else if state == RELAY_PEER_DESTROYED {
+					conn.log.Warnf("RelayPeer %d (%s) is now destroyed.", relayPeerNumber, peerOptions.Host)
+					conn.sendRelayErrorEvent(relayPeerNumber, proto.RelayErrorTypes_RELAY_DESTROYED, "RelayPeer has been destroyed.")
+				}
+			case <-conn.stopSignal.GetSignal():
+				conn.log.Debug("Exiting setupRelayPeer loop.")
+				relayPeer.Cleanup()
+				return
+			}
 		}
 	}()
 
-	if err != nil {
-		relayConnLog.Error("Error creating relay peer: ", err)
-		return err /// return and let the setupConnections loop take over
+	// start the peer connection
+	for err := relayPeer.Start(conn.onConnection, conn.onCall, conn.onRelayError); err != nil; {
+		conn.log.Warnf("Failed to start RelayPeer %d, retrying in %d seconds... %s", relayPeerNumber, relayPeer.expBackoffErrorCount, err.Error())
+		time.Sleep(time.Second * time.Duration(relayPeer.expBackoffErrorCount))
 	}
 
-	relayPeer.On("open", func(peerId interface{}) {
-		var peerID string = peerId.(string) // typecast to string
-		if peerID != relayPeerId {
-			exitFuncSignal.Trigger() // signal to this goroutine to exit and let the setupConnections loop take over and rerun this function
-		} else {
-			relayConnLog.Info("Relay Peer Established!")
-			relayPeer.On("connection", func(data interface{}) {
-				conn.CurrentRelayPeer = relayPeer
-				clientPeerDataConnection := data.(*peerjs.DataConnection) // typecast to DataConnection
-				conn.peerConnectionOpenHandler(clientPeerDataConnection, *peerOptions)
-			})
+	conn.log.Infof("RelayPeer %d started.", relayPeerNumber)
+}
+
+/* peerConnectionOpenHandler (non-blocking function)
+ * This function sets up the event listeners for the relayPeer object that accept new webrtc peer connections to the relay and handle errors & sutch
+ * This loop also handles specific errors like offline relay state, by switching to offline mode, and peer id taken, by incrementing the peerid postfix number before trying again.
+ * This function should be called within the peer.On("open",) function of the relayPeer object.
+ * This function DOES NOT block, BUT the passed relayPeer parameter MUST NOT GO OUT OF SCOPE, or the event listeners will be garbage collected and (maybe) closed.
+ */
+func (conn *WebrtcConnectionCtrl) peerConnectionOpenHandler(dataConn *peerjs.DataConnection, relayPeerNumber uint32) {
+	var clientPeerId string = dataConn.GetPeerID()
+	log := conn.log
+
+	// push out an event that a new peer has connected
+	log.Info("Connection established with Peer: ", dataConn.GetPeerID())
+	conn.sendPeerConnectedEvent(relayPeerNumber, dataConn.GetPeerID())
+
+	// --- Handle Events on this datachannel
+
+	dataConn.On("close", func(_ interface{}) {
+		// push out an event that this peer connection has been closed
+		conn.sendPeerDataConnErrorEvent(relayPeerNumber, dataConn.GetPeerID(), proto.PeerConnErrorTypes_CONNECTION_CLOSED, "Connection closed")
+	})
+
+	dataConn.On("disconnected", func(_ interface{}) {
+		// push out an event that this peer connection has disconnected
+		conn.sendPeerDisconnectedEvent(relayPeerNumber, dataConn.GetPeerID())
+	})
+
+	dataConn.On("error", func(message interface{}) {
+		errMessage := message.(error).Error()
+		// TODO: fix error message mapping
+		errorType, ok := proto.PeerConnErrorTypes_value[errMessage]
+		if !ok {
+			errorType = int32(proto.PeerConnErrorTypes_UNKNOWN_ERROR)
 		}
+		// push out an event that this peer connection has had an error
+		conn.sendPeerDataConnErrorEvent(relayPeerNumber, dataConn.GetPeerID(), proto.PeerConnErrorTypes(errorType), errMessage)
 	})
 
-	relayPeer.On("close", func(interface{}) {
-		relayConnLog.Info("ROBOT PEER CLOSE EVENT")
-		exitFuncSignal.Trigger() // signal to this goroutine to exit and let the setupConnections loop take over
+	// handle incoming messages from this peer connection
+	dataConn.On("data", func(msgBytes interface{}) {
+		/* forwards the passed message string (coming from the client/browser via the datachannel) to the backend (named pipe or go code) */
+		conn.sendMsgRecivedEvent(relayPeerNumber, clientPeerId, msgBytes.([]byte))
 	})
 
-	relayPeer.On("disconnected", func(message interface{}) {
-		relayConnLog.Info("ROBOT PEER DISCONNECTED EVENT", message)
-		if !exitFuncSignal.HasTriggered {
-			log.Debug("Reconnecting...")
-			err = relayPeer.Reconnect()
-			if err != nil {
-				relayConnLog.Error("ERROR RECONNECTING TO DISCONNECTED PEER SERVER: ", err)
-				exitFuncSignal.Trigger() // signal to this goroutine to exit and let the setupConnections loop take over
+}
+
+func (conn *WebrtcConnectionCtrl) onRelayError(err peerjs.PeerError, relayPeerNumber uint32) {
+	errorType, ok := proto.RelayErrorTypes_value[err.Type]
+	if !ok {
+		errorType = int32(proto.RelayErrorTypes_UNKNOWN)
+	}
+	conn.sendRelayErrorEvent(relayPeerNumber, proto.RelayErrorTypes(errorType), err.Error())
+}
+
+// TODO: implement this
+func (conn *WebrtcConnectionCtrl) onCall(mediaConn *peerjs.MediaConnection, relayPeerNumber uint32) {
+	conn.log.Warn("onCall: not fully implemented!")
+	tracks := []*proto.TrackInfo{}
+	if stream := mediaConn.GetRemoteStream(); stream != nil {
+		for _, track := range stream.GetTracks() {
+			trackInfo := peerjsTrackToTrackInfo(track.(*webrtc.TrackRemote))
+			tracks = append(tracks, trackInfo)
+		}
+		conn.sendPeerCalledEvent(relayPeerNumber, mediaConn.GetPeerID(), mediaConn.Label, tracks)
+	} else {
+		conn.log.Warn("onCall: waiting for remote stream!")
+		mediaConn.On("stream", func(stream interface{}) {
+			rStream := stream.(*peerjs.MediaStream)
+			for _, track := range rStream.GetTracks() {
+				trackInfo := peerjsTrackToTrackInfo(track.(*webrtc.TrackRemote))
+				tracks = append(tracks, trackInfo)
 			}
-		}
-	})
+			conn.sendPeerCalledEvent(relayPeerNumber, mediaConn.GetPeerID(), mediaConn.Label, tracks)
+		})
+	}
+}
 
-	relayPeer.On("error", func(err interface{}) {
-		errorMessage := err.(peerjs.PeerError).Error()
-		errorType := err.(peerjs.PeerError).Type
-		relayConnLog.Error("ROBOT PEER ERROR EVENT:", errorType, errorMessage)
-		if contains(FATAL_PEER_ERROR_TYPES, errorType) {
-			exitFuncSignal.TriggerWithError(err.(peerjs.PeerError)) // signal to this goroutine to exit and let the setupConnections loop take over
-		}
-	})
+// onConnection: called when another peer connects to any of the relay peers
+func (conn *WebrtcConnectionCtrl) onConnection(dataConn *peerjs.DataConnection, relayPeerNumber uint32) {
+	if dataConn.Open {
+		conn.peerConnectionOpenHandler(dataConn, relayPeerNumber)
+	} else {
+		dataConn.On("open", func(_ interface{}) {
+			conn.peerConnectionOpenHandler(dataConn, relayPeerNumber)
+		})
+	}
+}
 
-	// ---------------------------------------------------------------------------------------------------------------------
-	// block and wait for the exitFuncSignal or Relay.stopRelaySignal to be triggerd before exiting this function
-	select {
-	case <-exitFuncSignal.GetSignal():
-		return exitFuncSignal.GetError()
-	case <-conn.Relay.stopRelaySignal.GetSignal():
-		exitFuncSignal.Trigger()
-		return nil
+func peerjsTrackToTrackInfo(track *webrtc.TrackRemote) *proto.TrackInfo {
+	codec := track.Codec()
+	RTCPFeedback := []*proto.RTCPFeedback{}
+	for _, fb := range codec.RTCPFeedback {
+		RTCPFeedback = append(RTCPFeedback, &proto.RTCPFeedback{
+			Type:      fb.Type,
+			Parameter: fb.Parameter,
+		})
+	}
+	channelCount := uint32(codec.Channels)
+	payloadType := uint32(codec.PayloadType)
+	codecParams := &proto.RTPCodecParams{
+		MimeType:     codec.MimeType,
+		ClockRate:    &codec.ClockRate,
+		Channels:     &channelCount,
+		PayloadType:  &payloadType,
+		RTCPFeedback: RTCPFeedback,
+		SDPFmtpLine:  &codec.SDPFmtpLine,
+	}
+	return &proto.TrackInfo{
+		Name:  track.ID(),
+		Kind:  track.Kind().String(),
+		Codec: codecParams,
 	}
 }

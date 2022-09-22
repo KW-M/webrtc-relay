@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Peerjs Relay Simple Frontend</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <style>
+        body {
+            padding: 8px;
+        }
+
+        #messages {
+            white-space: pre;
+            font-family: monospace;
+            line-height: 1.6em;
+        }
+
+    </style>
+</head>
+
+
+<body>
+    <h1>Peerjs Cloud - Webrtc-Relay Simple Frontend</h1>
+    <button id="connect_btn">Click to connect</button>
+    <button id="start_video_btn" disabled>Send "Begin video stream" message</button>
+    <p>
+        Open Browser Console For Progress.<br />
+        Type any key to send a message once connected.
+    </p>
+    <section id="messages"></section>
+
+    <!-- Include the peerjs library -->
+    <script src="js/peerjs.min.js"></script>
+    <!-- Example scripts (in order of dependency) -->
+    <script src="js/relayConn.js"></script>
+    <script src="js/constants.js"></script>
+    <script>
+        // see contstants.js
+        const PEERJS_CONNECTION_OPTIONS = localPeerServerOptions;
+        if (!window.location.host.includes("127.0.0.1")) {
+            alert("You must use a local web server and access this page at 127.0.0.1:9000 (localhost ip) for it to work.");
+        }
+    </script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>

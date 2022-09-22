@@ -1,10 +1,11 @@
-package webrtc_relay
+package namedpipe
 
 import (
 	"net"
 	"os"
 	"time"
 
+	"github.com/kw-m/webrtc-relay/pkg/util"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,7 +20,7 @@ import (
 type UnixSocketRelay struct {
 	socketConnection      net.Conn
 	socketListener        net.Listener
-	exitSocketLoopsSignal *UnblockSignal
+	exitSocketLoopsSignal util.UnblockSignal
 	messagesToSocket      chan string
 	messagesFromSocket    chan string
 	readBufferSize        int
@@ -47,7 +48,7 @@ L:
 				continue
 			} else if err != nil {
 				// && errors.As(err, net)
-				sock.debugLog.Warn("Connection read error:", err)
+				sock.debugLog.Warn("Connection read error:", err.Error())
 				sock.exitSocketLoopsSignal.Trigger()
 				break L
 			}
@@ -75,7 +76,7 @@ L:
 				sock.socketConnection.SetWriteDeadline(time.Now().Add(time.Second * 10))
 				_, err := sock.socketConnection.Write([]byte(msg))
 				if err != nil {
-					sock.debugLog.Warn("Connection write error: ", err)
+					sock.debugLog.Warn("Connection write error: ", err.Error())
 					sock.exitSocketLoopsSignal.Trigger()
 					break L
 				}
@@ -117,21 +118,21 @@ func (sock *UnixSocketRelay) startSocketServer(unixSocketPath string) {
 		// try to remove any old socket file if it is still exists
 		err := os.Remove(unixSocketPath)
 		if err != nil {
-			sock.debugLog.Warn("ERROR REMOVING EXISTING UNIX SOCKET FILE: ", err)
+			sock.debugLog.Warn("ERROR REMOVING EXISTING UNIX SOCKET FILE: ", err.Error())
 		}
 	}
 
 	// get a reference to the unix socket given the socket file location
 	addr, err := net.ResolveUnixAddr("unixpacket", unixSocketPath)
 	if err != nil {
-		sock.debugLog.Error("Error resolving socket path: ", err)
+		sock.debugLog.Error("Error resolving socket path: ", err.Error())
 		return
 	}
 
 	// create the socket file and listen for connections
 	sock.socketListener, err = net.ListenUnix("unixpacket", addr)
 	if err != nil {
-		sock.debugLog.Error("Listen error: ", err)
+		sock.debugLog.Error("Listen error: ", err.Error())
 		return
 	}
 
@@ -139,7 +140,7 @@ func (sock *UnixSocketRelay) startSocketServer(unixSocketPath string) {
 	sock.debugLog.Info("Listening for connection...")
 	sock.socketConnection, err = sock.socketListener.Accept()
 	if err != nil {
-		sock.debugLog.Error("Accept connection error: ", err)
+		sock.debugLog.Error("Accept connection error: ", err.Error())
 		return
 	}
 
@@ -161,7 +162,7 @@ func (sock *UnixSocketRelay) startSocketServer(unixSocketPath string) {
  * PARAM: readBufferSize is the size of the read buffer for the socket connection.
  * RETURNS: a UnixSocketRelay struct that is the new relay for the unix socket.
  */
-func CreateUnixSocketRelay(closeSocketSignal *UnblockSignal, messagesFromSocket *chan string, messagesToSocket *chan string, unixSocketPath string, readBufferSize int) *UnixSocketRelay {
+func CreateUnixSocketRelay(closeSocketSignal *util.UnblockSignal, messagesFromSocket *chan string, messagesToSocket *chan string, unixSocketPath string, readBufferSize int) *UnixSocketRelay {
 	sock := new(UnixSocketRelay)
 	sock.messagesToSocket = *messagesToSocket
 	sock.messagesFromSocket = *messagesFromSocket
@@ -175,7 +176,7 @@ func CreateUnixSocketRelay(closeSocketSignal *UnblockSignal, messagesFromSocket 
 				sock.exitSocketLoopsSignal.Trigger()
 				return
 			default:
-				sock.exitSocketLoopsSignal = NewUnblockSignal()
+				sock.exitSocketLoopsSignal = util.NewUnblockSignal()
 				sock.startSocketServer(unixSocketPath)
 				time.Sleep(time.Second * 10) // wait a second before trying to reconnect
 			}

@@ -1,4 +1,4 @@
-package webrtc_relay
+package media
 
 import (
 	// "encoding/json"
@@ -20,13 +20,14 @@ import (
 
 	"time"
 
+	"github.com/kw-m/webrtc-relay/pkg/util"
 	webrtc "github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	h264FrameDuration = time.Millisecond * 33
+	H264FrameDuration = time.Millisecond * 33
 )
 
 // setup logrus logger
@@ -41,15 +42,15 @@ func initVideoTrack() *webrtc.TrackLocalStaticSample {
 	var err error
 	cameraLivestreamVideoTrack, err = webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: "video/h264"}, "rov-front-cam", "rov-front-cam-stream")
 	if err != nil {
-		cameraLog.Fatal("could not create video track. ", err)
+		cameraLog.Fatal("could not create video track. ", err.Error())
 	}
 
 	return cameraLivestreamVideoTrack
 }
 
-func readRawStream(programShouldQuitSignal *UnblockSignal, cmd io.Reader) error {
+func readRawStream(programShouldQuitSignal *util.UnblockSignal, cmd io.Reader) error {
 	readBufferSize := 4096
-	readInterval := h264FrameDuration
+	readInterval := H264FrameDuration
 	// just keeps reading the named pipe bytes at a set intervals and pushing them onto the webrtc track
 	tmpReadBuf := make([]byte, readBufferSize)
 	ticker := time.NewTicker(readInterval)
@@ -74,7 +75,7 @@ func readRawStream(programShouldQuitSignal *UnblockSignal, cmd io.Reader) error 
 	}
 }
 
-func pipeVideoToStream(programShouldQuitSignal *UnblockSignal) error {
+func pipeVideoToStream(programShouldQuitSignal *util.UnblockSignal) error {
 	// Startup libcamera-vid command to get the video data from the camera exposed (locally) on a http/tcp port
 	// 960x720
 	// "--width", "640", "--height", "480",
@@ -91,7 +92,7 @@ func pipeVideoToStream(programShouldQuitSignal *UnblockSignal) error {
 	stdoutPipe, _ := cmd.StdoutPipe()
 	sderrPipe, err := cmd.StderrPipe()
 	if err != nil {
-		cameraLog.Fatal("could not create video stream cmd output pipes. ", err)
+		cameraLog.Fatal("could not create video stream cmd output pipes. ", err.Error())
 	}
 
 	// print out the stderr output of the command in a seperate go routine
@@ -105,7 +106,7 @@ func pipeVideoToStream(programShouldQuitSignal *UnblockSignal) error {
 
 	// Create a new video track from the h264 reader
 	if err := cmd.Start(); err != nil {
-		cameraLog.Printf("[camera-stream-cmd][CMD START ERROR] > %s\n", err)
+		cameraLog.Printf("[camera-stream-cmd][CMD START ERROR] > %s\n", err.Error())
 		return err
 	}
 
@@ -114,7 +115,7 @@ func pipeVideoToStream(programShouldQuitSignal *UnblockSignal) error {
 	// ------------------------------
 	// stdoutPipe, err := os.OpenFile(config.NamedPipeFolder+"vid.pipe", os.O_RDWR, os.ModeNamedPipe|0666)
 	// if err != nil {
-	// 	log.Error("Error opening named pipe:", err)
+	// 	log.Error("Error opening named pipe:", err.Error())
 	// 	return nil
 	// }
 	//------------------------------
@@ -127,7 +128,7 @@ func pipeVideoToStream(programShouldQuitSignal *UnblockSignal) error {
 	// }
 
 	// go func() {
-	// 	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/src/main.go
+	// 	// from https://github.com/ashellunts/ffmpeg-to-webrtc/blob/master/pkg/main.go
 	// 	// Send our video a frame at a time. Pace our sending so we send it at the same speed it should be played back as.
 	// 	// This isn't required since the video is timestamped, but we will such much higher loss if we send all at once.
 
@@ -135,7 +136,7 @@ func pipeVideoToStream(programShouldQuitSignal *UnblockSignal) error {
 	// 	// * avoids accumulating skew, just calling time.Sleep didn't compensate for the time spent parsing the data
 	// 	// * works around latency issues with Sleep (see https://github.com/golang/go/issues/44343)
 	// 	spsAndPpsCache := []byte{}
-	// 	ticker := time.NewTicker(h264FrameDuration)
+	// 	ticker := time.NewTicker(H264FrameDuration)
 	// 	for ; true; <-ticker.C {
 	// 		nal, h264Err := h264.NextNAL()
 	// 		if h264Err == io.EOF {

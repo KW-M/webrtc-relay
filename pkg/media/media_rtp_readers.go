@@ -1,4 +1,4 @@
-package webrtc_relay
+package media
 
 import (
 	"errors"
@@ -12,17 +12,17 @@ func read_raw_rtp_stream(rtpSource *RtpMediaSource) error {
 	for {
 		n, _, err := rtpSource.listener.ReadFrom(inboundRTPPacket)
 		if err != nil {
-			rtpSource.log.Errorf("error during read: %s", err)
+			rtpSource.log.Errorf("error during read: %s", err.Error())
 			return err
 		}
 
-		if _, err = rtpSource.WebrtcTrack.Write(inboundRTPPacket[:n]); err != nil {
+		if _, err = rtpSource.webrtcTrack.Write(inboundRTPPacket[:n]); err != nil {
 			if errors.Is(err, io.ErrClosedPipe) {
 				// The peerConnection has been closed.
 				rtpSource.log.Warn("PeerConnection closed")
 				return nil
 			} else {
-				rtpSource.log.Error(err)
+				rtpSource.log.Error(err.Error())
 				return err
 			}
 		}
