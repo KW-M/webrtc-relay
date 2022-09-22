@@ -35,26 +35,15 @@ type WebrtcRelayConfig struct {
 	// File path to use for temporarilly storing the token used by peerjs server to verify this client (webrtc-relay) really is the peer id it says it is.
 	TokenPersistanceFile string
 
-	// The folder path (w trailing slash) where the named pipes should be created to act as a relay for messages and media streams sent from your prefered programming language (eg: python)
-	// Default: "/tmp/webtrc-relay-pipes/"
-	NamedPipeFolder string
-
 	// Whether or not the webrtc-relay should attempt to create the named pipes for data communication (set to false if you wish to send messages directly from go code)
 	// (note that regardless of this value, the datachannel message string format is the same also media channel named pipes will always be created).
 	// Default: true
 	StartGRPCServer bool
 
-	// The string that goes between each message when sent through the named pipe:
-	// Default: "\n"
-	MessageDelimiter string
-
-	// the string that goes between the message metadata json and the actual message when sent through the named pipe
-	// Default: |"|  (an intentionally an invalid json string)
-	MessageMetadataSeparator string
-
-	// if true, when a datachannel message is recived or a peer connects, metadata like the sender's peer id will be prepended to all message as json before being sent to the named pipe.
-	// if true, the webrtc-relay will expect json to be prepended to messages comming back from the named pipe in the same format (json metadata, then seperator, then message)
-	AddMetadataToBackendMessages bool
+	// GRPCServerAddress is the address to listen on for GRPC connections
+	// To connect over http/2 (default) use the format: "http://host:port"
+	// To connect over a unix socket use the format: "unix://path/to/socket" ("unix:///path/to/socket" would be an absolute path)
+	GRPCServerAddress string
 
 	// LogLevel: The log verbosity to use for the webrtc-relay. Must be one of: critical, error, warn, info, debug. (debug is most verbose)
 	// Default: "warn"
@@ -196,15 +185,12 @@ func GetDefaultRelayConfig() WebrtcRelayConfig {
 		UseMemorablePeerIds:            false,
 		MemorablePeerIdOffset:          0,
 		PeerInitConfigs:                []*PeerInitOptions{&peerInitOpts},
-		NamedPipeFolder:                "/tmp/webtrc-relay-pipes/",
 		TokenPersistanceFile:           "/tmp/webtrc-relay-tokens.json",
-		StartGRPCServer:                true,
-		MessageDelimiter:               "\n",
-		MessageMetadataSeparator:       "|\"|", // intentionally an invalid json string
-		AddMetadataToBackendMessages:   true,
 		IncludeMessagesInLogs:          false,
 		LogLevel:                       "info",
 		GoProfilingServerEnabled:       false,
+		StartGRPCServer:                true,
+		GRPCServerAddress:              "http://localhost:9718",
 	}
 }
 

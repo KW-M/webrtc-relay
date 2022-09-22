@@ -8,13 +8,9 @@ import (
 	"github.com/kw-m/webrtc-relay/pkg/util"
 	peerjs "github.com/muka/peerjs-go"
 	peerjsServer "github.com/muka/peerjs-go/server"
+	"github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 )
-
-// type MediaTrackData struct {
-// 	Track       *peerjs.MediaStreamTrack // the media track
-// 	MediaSource *media.RtpMediaSource    // the source handler of the media track
-// }
 
 // WebrtcConnectionCtrl: This is the main controller in charge of maintaining an open peer and accepting/connecting to other peers.
 // While the fields here are public, they are NOT meant to be modified by the user, do so at your own risk.
@@ -198,12 +194,25 @@ func (conn *WebrtcConnectionCtrl) onRelayError(err peerjs.PeerError, relayPeerNu
 
 // TODO: implement this
 func (conn *WebrtcConnectionCtrl) onCall(mediaConn *peerjs.MediaConnection, relayPeerNumber uint32) {
-	conn.log.Warn("onCall: not implemented!")
-	trackNames := []string{}
-	for _, track := range mediaConn.GetRemoteStream().GetTracks() {
-		trackNames = append(trackNames, track.ID())
+	conn.log.Warn("onCall: not fully implemented!")
+	tracks := []*proto.TrackInfo{}
+	if stream := mediaConn.GetRemoteStream(); stream != nil {
+		for _, track := range stream.GetTracks() {
+			trackInfo := peerjsTrackToTrackInfo(track.(*webrtc.TrackRemote))
+			tracks = append(tracks, trackInfo)
+		}
+		conn.sendPeerCalledEvent(relayPeerNumber, mediaConn.GetPeerID(), mediaConn.Label, tracks)
+	} else {
+		conn.log.Warn("onCall: waiting for remote stream!")
+		mediaConn.On("stream", func(stream interface{}) {
+			rStream := stream.(*peerjs.MediaStream)
+			for _, track := range rStream.GetTracks() {
+				trackInfo := peerjsTrackToTrackInfo(track.(*webrtc.TrackRemote))
+				tracks = append(tracks, trackInfo)
+			}
+			conn.sendPeerCalledEvent(relayPeerNumber, mediaConn.GetPeerID(), mediaConn.Label, tracks)
+		})
 	}
-	conn.sendPeerCalledEvent(relayPeerNumber, mediaConn.GetPeerID(), mediaConn.Label, trackNames)
 }
 
 // onConnection: called when another peer connects to any of the relay peers
@@ -214,5 +223,31 @@ func (conn *WebrtcConnectionCtrl) onConnection(dataConn *peerjs.DataConnection, 
 		dataConn.On("open", func(_ interface{}) {
 			conn.peerConnectionOpenHandler(dataConn, relayPeerNumber)
 		})
+	}
+}
+
+func peerjsTrackToTrackInfo(track *webrtc.TrackRemote) *proto.TrackInfo {
+	codec := track.Codec()
+	RTCPFeedback := []*proto.RTCPFeedback{}
+	for _, fb := range codec.RTCPFeedback {
+		RTCPFeedback = append(RTCPFeedback, &proto.RTCPFeedback{
+			Type:      fb.Type,
+			Parameter: fb.Parameter,
+		})
+	}
+	channelCount := uint32(codec.Channels)
+	payloadType := uint32(codec.PayloadType)
+	codecParams := &proto.RTPCodecParams{
+		MimeType:     codec.MimeType,
+		ClockRate:    &codec.ClockRate,
+		Channels:     &channelCount,
+		PayloadType:  &payloadType,
+		RTCPFeedback: RTCPFeedback,
+		SDPFmtpLine:  &codec.SDPFmtpLine,
+	}
+	return &proto.TrackInfo{
+		Name:  track.ID(),
+		Kind:  track.Kind().String(),
+		Codec: codecParams,
 	}
 }

@@ -1,12 +1,14 @@
 package webrtc_relay
 
 import (
+	"errors"
 	"fmt"
 
 	wr_config "github.com/kw-m/webrtc-relay/pkg/config"
 	"github.com/kw-m/webrtc-relay/pkg/media"
 	"github.com/kw-m/webrtc-relay/pkg/proto"
 	"github.com/kw-m/webrtc-relay/pkg/util"
+	"github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -175,12 +177,30 @@ func (relay *WebrtcRelay) DisconnectFromPeer(peerId string, relayPeerNumber uint
 // Param streamName (string): The name of the media channel stream to use
 // Param trackName (string): The name of the track within the stream to add (empty string will not add a track)
 // Param rtpSourceUrl (string): The url of the rtp source to use for the track (empty string will not add a track)
-func (relay *WebrtcRelay) CallPeers(targetPeerIds []string, relayPeerNumber uint32, streamName string, trackName string, mimeType string, rtpSourceUrl string, exchangeId uint32) error {
-	_, err := relay.mediaCtrl.AddRtpTrack(trackName, mimeType, rtpSourceUrl)
-	if err != nil {
-		return err
+func (relay *WebrtcRelay) CallPeers(targetPeerIds []string, relayPeerNumber uint32, streamName string, tracks []*proto.TrackInfo, exchangeId uint32) error {
+	if len(tracks) > 1 {
+		return errors.New("more than one track isn't supported for now")
 	}
-	relay.connCtrl.streamTrackToPeers(targetPeerIds, relayPeerNumber, trackName, relay.mediaCtrl, exchangeId)
+
+	for _, track := range tracks {
+		params := webrtc.RTPCodecParameters{
+			RTPCodecCapability: webrtc.RTPCodecCapability{
+				MimeType:    track.Codec.GetMimeType(),
+				ClockRate:   track.Codec.GetClockRate(),
+				Channels:    uint16(track.Codec.GetChannels()),
+				SDPFmtpLine: track.Codec.GetSDPFmtpLine(),
+			},
+			PayloadType: webrtc.PayloadType(track.Codec.GetPayloadType()),
+		}
+		_, err := relay.mediaCtrl.AddRtpTrack(track.Name, track.Kind, track.GetRtpSourceUrl(), params)
+		if err != nil {
+			return err
+		}
+	}
+
+	// TODO: Support multiple tracks
+
+	relay.connCtrl.streamTracksToPeers(targetPeerIds, relayPeerNumber, []string{tracks[0].Name}, relay.mediaCtrl, exchangeId)
 	return nil
 }
 

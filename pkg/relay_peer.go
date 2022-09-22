@@ -206,13 +206,13 @@ func (rp *RelayPeer) createPeer() error {
 	rp.peer.On("connection", func(dataConn interface{}) {
 		dataConnection := dataConn.(*peerjs.DataConnection)
 		rp.addDataConnection(dataConnection, rp.savedExchangeId)
-		rp.onConnection(dataConnection, 0)
+		rp.onConnection(dataConnection, rp.relayPeerNumber)
 	})
 
 	rp.peer.On("call", func(mediaConn interface{}) {
 		mediaConnection := mediaConn.(*peerjs.MediaConnection)
 		rp.addMediaConnection(mediaConnection, rp.savedExchangeId)
-		rp.onCall(mediaConnection, 0)
+		rp.onCall(mediaConnection, rp.relayPeerNumber)
 	})
 
 	rp.peer.On("error", func(err interface{}) {

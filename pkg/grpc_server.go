@@ -52,8 +52,12 @@ func (r *RelayGRPCServer) DisconnectFromPeer(context.Context, *proto.ConnectionR
 	return nil, status.Errorf(codes.Unimplemented, "method DisconnectFromPeer not implemented")
 }
 
-func (r *RelayGRPCServer) CallPeer(context.Context, *proto.CallRequest) (*proto.CallResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CallPeer not implemented")
+func (r *RelayGRPCServer) CallPeer(ctx context.Context, req *proto.CallRequest) (*proto.CallResponse, error) {
+	r.relay.CallPeers(req.GetTargetPeerIds(), req.GetRelayPeerNumber(), req.GetStreamName(), req.GetTracks(), req.GetExchangeId())
+	// return nil, status.Errorf(codes.Unimplemented, "method CallPeer not implemented")
+	return &proto.CallResponse{
+		Status: proto.Status_OK,
+	}, status.Errorf(codes.OK, "OKKKKK")
 }
 
 func (r *RelayGRPCServer) HangupPeer(context.Context, *proto.ConnectionRequest) (*proto.CallResponse, error) {
@@ -69,14 +73,28 @@ func (r *RelayGRPCServer) SendMsg(context.Context, *proto.SendMsgRequest) (*prot
 }
 
 func startRelayGRPCServer(relay *WebrtcRelay) {
-	log.Println("Starting gRPC server")
 	relayGrpcHandler := new(RelayGRPCServer)
 	relayGrpcHandler.relay = relay
+	serverTransport := relay.config.GRPCServerAddress[0:7] // "http://" or "unix://"
+	serverAddress := relay.config.GRPCServerAddress[7:]
 
+	log.Println("Starting gRPC server, transport:", serverTransport, " address:", serverAddress)
 	// start grpc given the port
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", 9023))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+	var lis net.Listener
+	var err error
+	if serverTransport == "http://" {
+		lis, err = net.Listen("tcp", serverAddress)
+		if err != nil {
+			log.Fatalf("failed to listen on tcp address: %s err: %v", serverAddress, err)
+		}
+	} else if serverTransport == "unix://" {
+		lis, err = net.Listen("unix", serverAddress)
+		if err != nil {
+			log.Fatalf("failed to listen on unix socket: %s err: %v", serverAddress, err)
+		}
+	} else {
+		log.Fatalf("invalid server transport in webrtc-relay config: %s", serverTransport)
+		return
 	}
 
 	gServer := grpc.NewServer()

@@ -11,7 +11,6 @@ import (
 
 	"github.com/kw-m/webrtc-relay/pkg/config"
 	proto "github.com/kw-m/webrtc-relay/pkg/proto"
-	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -33,7 +32,7 @@ func TestGRPCRelay(t *testing.T) {
 
 	// start the grpc backend client
 	var conn *grpc.ClientConn
-	conn, err := grpc.Dial(":9023", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(":9718", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Backend: could not connect to grpc server: %s", err)
 	} else {
@@ -53,22 +52,22 @@ func TestGRPCRelay(t *testing.T) {
 		t.Error("Relay peer not found with number: ", peerInitConfig.RelayPeerNumber)
 	}
 	relayId := relayPeer.GetPeerId()
-	frontendPeer, _ := testWithFrontendPeer(t, relayId, peerInitConfig, false, false)
+	frontendPeer, _ := testWithFrontendPeer(t, relayId, peerInitConfig, true, true)
 	defer frontendPeer.Destroy()
 
 	<-time.After(2 * time.Second)
 	println("------- frontend peer started -------")
 
-	// tell the relay to connect to the frontend peer using grpc calls:
-	fmt.Printf("Backend GRPC: connecting to frontend peer... (%s) \n", frontendPeer.ID)
-	response, err := backend.ConnectToPeer(context.Background(), &proto.ConnectionRequest{
-		PeerId: frontendPeer.ID,
-	})
-	if err != nil {
-		t.Errorf("Backend: could not connect to peer: %v", err)
-	}
-	assert.Equal(t, proto.Status_OK, response.Status)
-	fmt.Printf("Backend: Response from grpc connect call: %+v", response)
+	// // tell the relay to connect to the frontend peer using grpc calls:
+	// fmt.Printf("Backend GRPC: connecting to frontend peer... (%s) \n", frontendPeer.ID)
+	// response, err := backend.ConnectToPeer(context.Background(), &proto.ConnectionRequest{
+	// 	PeerId: frontendPeer.ID,
+	// })
+	// if err != nil {
+	// 	t.Errorf("Backend: could not connect to peer: %v", err)
+	// }
+	// assert.Equal(t, proto.Status_OK, response.Status)
+	// fmt.Printf("Backend: Response from grpc connect call: %+v", response)
 	<-time.After(6 * time.Second)
 }
 

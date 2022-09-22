@@ -19,6 +19,12 @@ package webrtcrelay;
 // - A "peer Conn|ection" is the webrtc connection between a relay peer and a remote peer.
 // - A "exchangeId" is a random/unique number you can include in most grpc calls. If some event (disconnect/hangup/error/etc) happens as a result of that grpc call, the same exchangeId will be included in the eventStream event.
 
+// usages in different languages
+// ## Python
+// pip install "betterproto[compiler]"
+// --python_betterproto_out=lib example.proto
+//
+
 // enum RelayEventTypes {
 //     MESSAGE_RECEIVED = 0; // MsgRecivedEvent
 
@@ -56,6 +62,42 @@ enum RelayErrorTypes {
     SERVER_NOT_FOUND = 2;
     INVALID_PEERID = 3;
     RELAY_DESTROYED = 4;
+}
+
+// enum TrackSources {
+//     BAC = 0;
+//     REMOTE = 1;
+// }
+
+message RTCPFeedback {
+	// Type is the type of feedback.
+	// see: https://draft.ortc.org/#dom-rtcrtcpfeedback
+	// valid: ack, ccm, nack, goog-remb, transport-cc
+	string Type = 1;
+
+    // The parameter value depends on the type.
+	// For example, type="nack" parameter="pli" will send Picture Loss Indicator packets.
+	string Parameter = 2;
+}
+
+// RTPCodecParameters is a sequence containing the media codecs that an RtpSender will choose from, as well as entries for RTX, RED and FEC mechanisms. This also includes the PayloadType that has been negotiated
+// https://w3c.github.io/webrtc-pc/#rtcrtpcodecparameters
+// RTPCodecCapability provides information about codec capabilities.
+// https://w3c.github.io/webrtc-pc/#dictionary-rtcrtpcodeccapability-members
+message RTPCodecParams {
+	string MimeType = 1;
+	optional uint32 ClockRate = 2;
+	optional uint32 Channels  = 3;
+	optional string SDPFmtpLine  = 4;
+	repeated RTCPFeedback RTCPFeedback = 5;
+    optional uint32 PayloadType = 6; //PayloadType identifies the format of the RTP payload and determines its interpretation by the application. Each codec in a RTP Session will have a different PayloadType See: https://tools.ietf.org/html/rfc3550#section-3
+}
+
+message TrackInfo {
+    string name = 1; // the unique ID of this track within a media stream
+    string kind = 2; // audio|video
+    RTPCodecParams codec = 3;
+    optional string rtpSourceUrl = 4; // only for tracks streamed by/from the backend (for now)
 }
 
 /// ----- Relay Event Stream Event Types -----
@@ -101,7 +143,7 @@ message PeerCalledEvent {
     uint32 relayPeerNumber = 1;
     string srcPeerId = 2;
     string streamName = 3;
-    repeated string trackNames = 4;
+    repeated TrackInfo tracks = 4;
     // more fields tbd
 }
 
@@ -119,7 +161,7 @@ message PeerDataConnErrorEvent {
     string msg = 4;
 }
 
-// RelayEventStream event that is sent when any media connection to a remote peer  encounters an error
+// RelayEventStream event that is sent when any media connection to a remote peer encounters an error
 message PeerMediaConnErrorEvent {
     uint32 relayPeerNumber = 1;
     string srcPeerId = 2;
@@ -159,9 +201,11 @@ message ConnectionResponse {
 }
 
 message CallRequest {
-    string peerId = 1;
-    optional uint32 relayPeerNumber = 2;
+    repeated string targetPeerIds = 1;
+    string streamName = 2;
+    optional uint32 relayPeerNumber = 3;
     optional uint32 exchangeId = 4;
+    repeated TrackInfo tracks = 5;
 }
 
 message CallResponse {
@@ -201,6 +245,7 @@ message RelayPeerNumber {
    uint32 number = 1;
 }
 
+// rpc to interface with a running webrtc-relay
 service WebRTCRelay {
 
   // Get a stream of events from the webrtc-relay including recived messages, peer dis/connection events & errors, relay dis/connection events & errors.

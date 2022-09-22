@@ -26,7 +26,7 @@ func main() {
 		ticker := time.NewTicker(time.Second * 1)
 		for {
 			<-ticker.C // wait for ticker to trigger and then send the message
-			relay.SendMsg([]string{"*"}, []byte("Relay, this is Relay do you copy? The time is "+time.Now().Local().Format(time.RFC850)+"\n"))
+			relay.SendMsg([]string{"*"}, []byte("Relay, this is Relay do you copy? The time is "+time.Now().Local().Format(time.RFC850)+"\n"), 0)
 			// relay.RelayInputMessageChannel <- "{ \"TargetPeers\": [\"*\"] }|\"|Relay, this is Relay do you copy? The time is " + time.Now().Local().Format(time.RFC850) + "\n"
 		}
 	}()

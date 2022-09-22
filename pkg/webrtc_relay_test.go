@@ -124,7 +124,9 @@ func testWithFrontendPeer(t *testing.T, relayId string, peerInitConfig *relay_co
 		if mediaCallRelay {
 			// media call the relay
 			println("Frontend peer: media calling ", relayId, " (Relay)")
-			mediaConn, err := frontendPeer.Call(relayId, &webrtc.TrackLocalStaticSample{}, opts)
+			track, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8}, "video", "me")
+			assert.NoError(t, err)
+			mediaConn, err := frontendPeer.Call(relayId, track, opts)
 			assert.NoError(t, err)
 			assert.NotNil(t, mediaConn)
 			mediaConn.On("stream", func(relayStream interface{}) {

@@ -124,11 +124,11 @@ func (conn *WebrtcConnectionCtrl) sendMessageToPeers(targetPeerIds []string, rel
 	}
 }
 
-func (conn *WebrtcConnectionCtrl) streamTrackToPeers(targetPeerIds []string, relayPeerNumber uint32, trackName string, media *media.MediaController, exchangeId uint32) {
+func (conn *WebrtcConnectionCtrl) streamTracksToPeers(targetPeerIds []string, relayPeerNumber uint32, trackNames []string, media *media.MediaController, exchangeId uint32) {
 	log := conn.log
 
 	// get the media source for the passed track name
-	trackSrc := media.GetTrack(trackName)
+	trackSrc := media.GetTrack(trackNames[0])
 
 	peerConns := conn.getPeerConnections(targetPeerIds, relayPeerNumber)
 	for _, peerConn := range peerConns {
@@ -139,7 +139,7 @@ func (conn *WebrtcConnectionCtrl) streamTrackToPeers(targetPeerIds []string, rel
 			relayMediaStream := peerConn.MediaConnection.GetLocalStream()
 			relayMediaTracks := relayMediaStream.GetTracks()
 			for _, track := range relayMediaTracks {
-				if track.ID() == trackName {
+				if track.ID() == trackNames[0] {
 					return
 				}
 			}

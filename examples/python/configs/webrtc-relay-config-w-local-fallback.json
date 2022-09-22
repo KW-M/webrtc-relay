@@ -4,9 +4,8 @@
     "UseMemorablePeerIds": true,
     "MemorablePeerIdOffset": 0,
     "IncludeMessagesInLogs": true,
-    "NamedPipeFolder": "/tmp/webrtc-relay-pipes/",
-    "MessageMetadataSeparator": "|\"|",
-    "AddMetadataToBackendMessages": true,
+    "StartGRPCServer": true,
+    "GRPCServerAddress": "http://localhost:9718",
     "PeerInitConfigs": [
         {
             "Host": "0.peerjs.com",

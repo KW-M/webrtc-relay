@@ -38,21 +38,21 @@ func (mediaCtrl *MediaController) GetTrack(trackName string) *RtpMediaSource {
 }
 
 // AddRtpTrack: add a new rtp track to the media controller and start listening for incoming rtp packets
-func (mediaCtrl *MediaController) AddRtpTrack(trackName string, mimeType string, srcUrl string) (*RtpMediaSource, error) {
+func (mediaCtrl *MediaController) AddRtpTrack(trackName string, kind string, rtpSrcUrl string, codecParams webrtc.RTPCodecParameters) (*RtpMediaSource, error) {
 
 	// check if the passed track name refers to an already in use track source, in which case we will remove it and replace it.
 	_ = mediaCtrl.RemoveTrack(trackName)
 
 	// make sure the  metadata is a valid media track udp (rtp) url;
-	sourceParts := strings.Split(srcUrl, "/")
+	sourceParts := strings.Split(rtpSrcUrl, "/")
 	if sourceParts[0] != "udp:" {
-		log.Error("Cannot start media call: The media source rtp url must start with 'udp://'")
+		return nil, errors.New("Cannot start media call: The media source rtp url must start with 'udp://'")
 	}
 
 	hostAndPort := sourceParts[2]
 
 	// Create a new media stream rtp reciver and webrtc track from the passed source url
-	mediaSrc, err := NewRtpMediaSource(hostAndPort, 10000, H264FrameDuration, mimeType, trackName)
+	mediaSrc, err := NewRtpMediaSource(hostAndPort, 10000, H264FrameDuration, codecParams.MimeType, trackName)
 	if err != nil {
 		log.Error("Error creating rtp media source: ", err.Error())
 		return nil, err

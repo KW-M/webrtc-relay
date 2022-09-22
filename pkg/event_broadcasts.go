@@ -109,7 +109,7 @@ func (conn *WebrtcConnectionCtrl) sendPeerDisconnectedEvent(relayPeerNumber uint
 	})
 }
 
-func (conn *WebrtcConnectionCtrl) sendPeerCalledEvent(relayPeerNumber uint32, srcPeerId string, streamName string, trackNames []string) {
+func (conn *WebrtcConnectionCtrl) sendPeerCalledEvent(relayPeerNumber uint32, srcPeerId string, streamName string, tracks []*proto.TrackInfo) {
 	exchangeId := conn.getMediaConnectionExchangeId(relayPeerNumber, srcPeerId)
 	conn.eventStream.Push(&proto.RelayEventStream{
 		ExchangeId: &exchangeId,
@@ -118,7 +118,7 @@ func (conn *WebrtcConnectionCtrl) sendPeerCalledEvent(relayPeerNumber uint32, sr
 				RelayPeerNumber: relayPeerNumber,
 				SrcPeerId:       srcPeerId,
 				StreamName:      streamName,
-				TrackNames:      trackNames,
+				Tracks:          tracks,
 			},
 		},
 	})
