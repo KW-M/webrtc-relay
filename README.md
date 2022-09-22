@@ -2,8 +2,9 @@
   <img src="Docs/Images/Webrtc-Relay Logo.svg" alt="drawing" width="200"/>
   <h1 align="center">WebRTC Relay</h1>
 </p>
+Relay low latency audio/video and data between remote computers and any web browser over WebRTC. This tool is programing language independent using gRPC and should compile on any os where golang is supported
 
-Relay low latency audio/video and data between remote computers and any web browser over WebRTC. This tool is programing language independent (using named pipes) and should compile on \*any os where golang is supported (\*except windows for now).
+:warning: WebRTC Relay is under development. The ***API has not yet stabilized***. A feature complete beta should be ready by begining of 2023
 
 ## Inspiration
 
@@ -11,7 +12,7 @@ I made this tool as an oss alternative to UV4L-WebRTC with fewer webrtc-related 
 
 ## Details
 
-Behind the scenes, this tool uses the [Pion WebRTC](https://github.com/pion/webrtc) stack and the [Peerjs-go](https://github.com/muka/peerjs-go) library for all the WebRTC-related stuff. This means you can use the PeerJS browser library and any peer.js signaling server (including the inbuilt peerjs-go signaling server) to make the webrtc connection easier. For the back-end interface, you can uses named pipes to send and recieve datachannel messages and video streams from your backend language of choice (so long as it supports reading and writing to named pipes)
+Behind the scenes, this tool uses the [Pion WebRTC](https://github.com/pion/webrtc) stack and the [Peerjs-go](https://github.com/muka/peerjs-go) library for all the WebRTC-related stuff. This means you can use the PeerJS browser library and any PeerJS signaling server (including the inbuilt peerjs-go signaling server) to make the webrtc connection easier on the front-end. For the back-end interface, you can either use the relay directly within a golang program or run webrtc-relay as a standalone program and control it via [gRPC](https://grpc.io/) from any language by compiling the [webrtc-relay.proto](./webrtc-relay.proto) file into an api stub for your [language](https://grpc.io/docs/languages/). At time of writing, gRPC supports Python, Java, C#, C++, Dart, Kotlin, Objective-C, Node JS, PHP, Ruby & Rust (and possibly more).
 
 ![Webrtc-Relay-Overview](Docs/Images/Webrtc-Relay-Overview.drawio.svg)
 
@@ -32,18 +33,22 @@ Behind the scenes, this tool uses the [Pion WebRTC](https://github.com/pion/webr
 
 1. To start the relay run the command: **`webrtc-relay -config-file "path/to/your/webrtc-relay-config.json"`**
    > **NOTE:** The python examples start the relay (run this command) as part of the example code.
+
 2. See the [examples/python](examples/python) for a simple python interface as well as example webrtc-relay-config.json files.
+
 3. Basic idea for sending messages to/from browsers through the webrtc data channel:
-   1. The relay will create two named pipe files in the "NamedPipeFolder" (specified in your webrtc-relay-config.json) named "from_webrtc_relay.pipe" and "to_webrtc_relay.pipe"
-   2. Your program can open these pipe and read/write to them like normal files.
-      > **Warning** Opening named pipes for writing without an aready open reader will block your program and/or the relay, so make sure to let relay open and create all named pipes before opening both the "to" and "from" named pipe in your program.
-   3. Each browser should connect to the relay peer id using peer JS.
+   1. The relay will start a grpc server (as specified in your webrtc-relay-config.json)
+
+   2. Your program can call the methods on the grpc server to control the webrtc-relay and send/recive messages and events.
+
+   3. Each browser should connect to the relay peer id using peer.JS.
       - To accept media streams, you should have on "Call" listener and answer any call with a null reply stream (browser to peer streams are not currently supported)
-        > **NOTE**: The browser side should be a pretty basic peerjs connection. No special api or messages exist for the browser to control the relay, all commands for the relay itself must come from your backend through metadata messages.
-   4. Your backend can send specially formatted messages with JSON metadata prepended to tell the relay where to send a message or to perform certain actions - like initiating a media call with a peer.
-   - See the python example for the currently supported commands / metadata
+        > **NOTE**: No special api or messages exist for the browser to control the relay, all commands for the relay itself must come from your backend through gRPC.
+   - See the webrtc-proto python example for the currently supported commands / metadata
 
 ## Use in a Go program
+
+This avoids the overhead of gRPC to get the lowest possible latency
 
 1. Add the program to your go.mod with **`go get github.com/kw-m/webrtc-relay`**
 
@@ -53,7 +58,7 @@ Behind the scenes, this tool uses the [Pion WebRTC](https://github.com/pion/webr
 
 See the example configs in [examples/python/configs](examples/python/configs)
 
-For an updated list of config options available see the WebrtcRelayConfig struct in [src/consts.go](src/consts.go).
+For an updated list of config options available see the WebrtcRelayConfig struct in [pkg/config/config_options.go](pkg/config/config_options.go).
 
 ## Getting Media from Devices
 
