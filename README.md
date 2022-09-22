@@ -2,13 +2,13 @@
   <img src="Docs/Images/Webrtc-Relay Logo.svg" alt="drawing" width="200"/>
   <h1 align="center">WebRTC Relay</h1>
 </p>
-Relay low latency audio/video and data between remote computers and any web browser over WebRTC. This tool is programing language independent using gRPC and should compile on any os where golang is supported
+Relay low latency audio/video and data between any web browser and remote devices over WebRTC. This tool is programing language independent (using gRPC) and should compile on any os where golang is supported
 
-:warning: WebRTC Relay is under development. The ***API has not yet stabilized***. A feature complete beta should be ready by begining of 2023
+⚠️ WebRTC Relay is under development. The ***API has not yet stabilized***. A feature complete beta should be ready by the begining of 2023
 
 ## Inspiration
 
-I made this tool as an oss alternative to UV4L-WebRTC with fewer webrtc-related constraints. My orignal use case was for controlling underwater drones over the internet, but this library could be used for any purpose where low latency video and/or data transport are needed. This project is similar to [Bot Box](https://github.com/roboportal/bot_box) but with more flexibility, at the cost of less being implemented for you: bring your own frontend / backend etc...
+I made this tool as an oss alternative to UV4L-WebRTC with fewer webrtc-related constraints. My orignal use case was controlling underwater drones over the internet, but this library could be used for any purpose where low latency video and/or data transport are needed. This project is similar to [Bot Box](https://github.com/roboportal/bot_box) but with more flexibility, at the cost of less being implemented for you: bring your own frontend / backend etc...
 
 ## Details
 
@@ -18,7 +18,7 @@ Behind the scenes, this tool uses the [Pion WebRTC](https://github.com/pion/webr
 
 ## Standalone Install
 
-1. Install [Golang](https://go.dev) for your platform.
+1. Install [Golang](https://go.dev) for your platform (v 1.18+).
 
    > **NOTE** on some linux distros like RaspberryPi os, apt ships an old version of go, so I recommend installing the latest version from the [Go website](https://go.dev/dl) - [Tutorial](https://www.jeremymorgan.com/tutorials/raspberry-pi/install-go-raspberry-pi)
 
