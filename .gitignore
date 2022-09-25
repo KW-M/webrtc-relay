@@ -4,10 +4,10 @@
 /build
 __debug_bin
 
-# named pipe files used in tests
-*.pipe
-/webrtc-relay-pipes
+# temp files used in tests
 webrtc-relay-tokens.json
+*.sdp
+
 
 # If you prefer the allow list template instead of the deny list, see community template:
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore

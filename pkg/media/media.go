@@ -45,8 +45,8 @@ func (mediaCtrl *MediaController) AddRtpTrack(trackName string, kind string, rtp
 
 	// make sure the  metadata is a valid media track udp (rtp) url;
 	sourceParts := strings.Split(rtpSrcUrl, "/")
-	if sourceParts[0] != "udp:" {
-		return nil, errors.New("Cannot start media call: The media source rtp url must start with 'udp://'")
+	if sourceParts[0] != "rtp:" {
+		return nil, errors.New("Cannot start media call: The media source rtp url must start with 'rtp://'")
 	}
 
 	hostAndPort := sourceParts[2]

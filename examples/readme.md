@@ -5,7 +5,7 @@
 The examples folder is organized by language used to write the example backend:
 
 ## Golang:
- These examples use this library directly, bypassing gRPC (media stream data is still expected to come from udp:// urls, not grpc)
+ These examples use this library directly, bypassing gRPC (media stream data is still expected to come from rtp:// (udp) urls, not grpc)
 ## Python:
 These Python examples use the standalone command version of webrtc-relay and communicate with the relay wholey over gRPC (unix domain sockets in this case, but can work over http/2).
   - Open a terminal at the [python](./python/) folder

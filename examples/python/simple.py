@@ -7,10 +7,6 @@ from protobuf.webrtcrelay import WebRtcRelayStub, EventStreamRequest, PeerConnec
 from grpclib.client import Channel
 import betterproto
 
-# These CONSTANTS must match the config options passed to webrtc-relay when started
-RELAY_NAMED_PIPES_FOLDER = './webrtc-relay-pipes/'
-RELAY_MSG_METADATA_SEPARATOR = "|\"|"
-
 # Get the folder containing this python file:
 THIS_PYTHON_EXAMPLES_FOLDER = pathlib.Path(
     __file__).parent.resolve().as_posix()
@@ -34,13 +30,14 @@ async def start_test_pattern_video_stream(peer_id_to_video_call):
     # Use ffmpeg to send a test pattern video stream to the relay in h264 encoded video format:
     # NOTE that this requires the ffmpeg command to be installed and in the PATH
     ffmpegInstanceNum = len(ffmpeg_processes)
+    # account for every other port being used for RTCP (RTP Control Protocol)
+    rtpPort = 7870 + (ffmpegInstanceNum * 2)
+    rtcpPort = rtpPort + 1  # set every other port to be used for RTCP (RTP Control Protocol)
     if len(ffmpeg_processes) < 2:
         ffmpeg_processes.append(
             run_cmd_string(
-                "ffmpeg -re -f lavfi -i testsrc=size=640x480:rate=30 -pix_fmt yuv420p -c:v libx264 -g 10 -preset ultrafast -tune zerolatency -f rtp 'rtp://127.0.0.1:182"
-                + str(ffmpegInstanceNum) + "?pkt_size=1200'"))
-        # alternatively replace the run_cmd_string line above with this use vp8 encoding (seems to run slower when run from python, not sure why):
-        # run_cmd_string(  "ffmpeg -re -f lavfi -i testsrc=size=640x480:rate=30 -pix_fmt yuv420p -c:v libx264 -g 10 -preset ultrafast -tune zerolatency -f rtp 'rtp://127.0.0.1:122"  + str(len(ffmpegProcessies)) + "?pkt_size=1200'")
+                "ffmpeg -fflags +genpts -protocol_whitelist pipe,tls,file,http,https,tcp,rtp -f lavfi -i testsrc=size=640x480:rate=30  -pix_fmt yuv420p -vf realtime -c:v libx264 -x264-params intra-refresh=1,fast-pskip=0 -profile:v baseline -level:v 3.1 -threads 3 -minrate 500K -maxrate 1.3M -bufsize 500K -g 10  -preset ultrafast -tune zerolatency -f rtp -sdp_file stream{}.sdp 'rtp://127.0.0.1:{}?rtcpport={}&localrtcpport={}&pkt_size=1200'"
+                .format(ffmpegInstanceNum, rtpPort, rtcpPort, rtcpPort)))
 
     # generate a random exchange id between 0 and 2^32 (max value of a 32 bit uint)
     # in a real application you could store this exchangeId and use it to match up the response events from the relay (will come as get_event_stream() events)  with the grpc request we are about to send
@@ -61,16 +58,17 @@ async def start_test_pattern_video_stream(peer_id_to_video_call):
                     codec=RtpCodecParams(
                         mime_type="video/H264"
                     ),  #specify "video/VP8" mime time to use VP8 video codec instead of H264 (also change the ffmpeg command above to use VP8 (or any webrtc-supported) encoding)
-                    rtp_source_url="udp://127.0.0.1:182" +
-                    str(ffmpegInstanceNum),
+                    rtp_source_url="rtp://127.0.0.1:" + str(rtpPort),
                 )
             ]))
 
 
 async def start_grpc_client():
     global grpc_channel, relay_grpc_stub
-    async with Channel(host="127.0.0.1", port=9023) as chan: # to use http/2 as the transport for grpc
-    # async with Channel(path="./WebrtcRelayGrpc.sock") as chan: # to use unix domain sockets as the transport for grpc
+    async with Channel(
+            host="127.0.0.1",
+            port=9718) as chan:  # to use http/2 as the transport for grpc
+        # async with Channel(path="./WebrtcRelayGrpc.sock") as chan: # to use unix domain sockets as the transport for grpc
         grpc_channel = chan
         relay_grpc_stub = WebRtcRelayStub(grpc_channel)
         eventStream = relay_grpc_stub.get_event_stream(
@@ -133,6 +131,8 @@ async def main():
     webrtc_relay_cmd_process = run_cmd_string(
         "webrtc-relay -config-file " + THIS_PYTHON_EXAMPLES_FOLDER +
         "/configs/webrtc-relay-config.json")
+
+    await asyncio.sleep(1)  # wait a second for webrtc-relay to start up
 
     # Configure the grpc client to communicate with the webrtc-relay:
     while True:

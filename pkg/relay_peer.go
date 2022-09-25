@@ -248,6 +248,10 @@ func (rp *RelayPeer) createPeer() error {
 
 func (p *RelayPeer) addMediaConnection(mediaConn *peerjs.MediaConnection, exchangeId uint32) {
 	p.openMediaConnections[mediaConn.GetPeerID()] = openMediaConnection{conn: mediaConn, exchangeId: exchangeId}
+	// for _, sender := range mediaConn.PeerConnection.GetSenders() {
+	// 	pkts, attribtes, err := sender.ReadRTCP()
+	// 	attribtes
+	// }
 	mediaConn.On("close", func(_ interface{}) {
 		p.log.Info("Media connection closed" + mediaConn.GetPeerID())
 		delete(p.openMediaConnections, mediaConn.GetPeerID())

@@ -83,8 +83,8 @@ package webrtc_relay
 
 // 	// make sure the  metadata is a valid media track udp (rtp) url;
 // 	sourceParts := strings.Split(sourcePath, "/")
-// 	if sourceParts[0] != "udp:" {
-// 		log.Error("Cannot start media call: The media source rtp url must start with 'udp://'")
+// 	if sourceParts[0] != "rtp:" {
+// 		log.Error("Cannot start media call: The media source rtp url must start with 'rtp://'")
 // 	}
 
 // 	// check if the passed track name refers to an already in use track source;

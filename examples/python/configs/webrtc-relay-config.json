@@ -4,7 +4,6 @@
     "UseMemorablePeerIds": false,
     "MemorablePeerIdOffset": 0,
     "IncludeMessagesInLogs": true,
-    "GoProfilingServerEnabled": true,
     "TokenPersistanceFile": "./webrtc-relay-tokens.json",
     "StartGRPCServer": true,
     "GRPCServerAddress": "http://localhost:9718",
