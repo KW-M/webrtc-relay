@@ -3,6 +3,7 @@ package webrtc_relay
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 
@@ -64,8 +65,17 @@ func (r *RelayGRPCServer) HangupPeer(context.Context, *proto.ConnectionRequest) 
 	return nil, status.Errorf(codes.Unimplemented, "method HangupPeer not implemented")
 }
 
-func (r *RelayGRPCServer) SendMsgStream(proto.WebRTCRelay_SendMsgStreamServer) error {
-	return status.Errorf(codes.Unimplemented, "method SendMsgStream not implemented")
+func (r *RelayGRPCServer) SendMsgStream(msgStream proto.WebRTCRelay_SendMsgStreamServer) error {
+	for {
+		msg, err := msgStream.Recv()
+		if err == io.EOF {
+			return status.Errorf(codes.OK, "done")
+		} else if err != nil {
+			log.Printf("Failed to receive message from client: %v", err)
+			return status.Errorf(codes.Internal, fmt.Sprintf("Failed to receive message from client: %v", err))
+		}
+		r.relay.SendMsg(msg.GetTargetPeerIds(), msg.GetPayload(), msg.GetRelayPeerNumber(), msg.GetExchangeId())
+	}
 }
 
 func (r *RelayGRPCServer) SendMsg(context.Context, *proto.SendMsgRequest) (*proto.SendMsgResponse, error) {

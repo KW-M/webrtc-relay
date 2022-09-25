@@ -1,9 +1,8 @@
 from asyncio.log import logger
-import datetime, asyncio, json, pathlib
-import math
-from random import random, randrange
+import asyncio, pathlib
+import random
 from helpers.run_cmd import run_cmd_string
-from protobuf.webrtcrelay import WebRtcRelayStub, EventStreamRequest, PeerConnectedEvent, MsgRecivedEvent, PeerCalledEvent, PeerDataConnErrorEvent, PeerDisconnectedEvent, PeerHungupEvent, PeerMediaConnErrorEvent, RelayConnectedEvent, RelayDisconnectedEvent, RelayErrorEvent, CallRequest, RtpCodecParams, TrackInfo
+from protobuf.webrtcrelay import WebRtcRelayStub, EventStreamRequest, PeerConnectedEvent, MsgRecivedEvent, PeerCalledEvent, PeerDataConnErrorEvent, PeerDisconnectedEvent, PeerHungupEvent, PeerMediaConnErrorEvent, RelayConnectedEvent, RelayDisconnectedEvent, RelayErrorEvent, CallRequest, RtpCodecParams, TrackInfo, SendMsgRequest
 from grpclib.client import Channel
 import betterproto
 
@@ -41,7 +40,7 @@ async def start_test_pattern_video_stream(peer_id_to_video_call):
 
     # generate a random exchange id between 0 and 2^32 (max value of a 32 bit uint)
     # in a real application you could store this exchangeId and use it to match up the response events from the relay (will come as get_event_stream() events)  with the grpc request we are about to send
-    exchange_id = randrange(4294967294)
+    exchange_id = random.randrange(4294967294)
 
     # tell the relay to media call the given peer id with the video stream we just created:
     await relay_grpc_stub.call_peer(
@@ -63,6 +62,67 @@ async def start_test_pattern_video_stream(peer_id_to_video_call):
             ]))
 
 
+async def listen_to_event_stream():
+    eventStream = relay_grpc_stub.get_event_stream(
+        event_stream_request=EventStreamRequest())
+    async for event in eventStream:
+        exchange_id = event.exchange_id
+        (event_type, e) = betterproto.which_one_of(event, "event")
+        print("PYTHON: Got GRPC Event: " + event_type)
+        if event_type == "msg_recived":
+            e: MsgRecivedEvent = e
+            print("PYTHON: Got msgRecived event: " + str(e) + " \ exId: " +
+                  str(exchange_id))
+            await handle_msg_recived(e, exchange_id)
+        if event_type == "relay_connected":
+            e: RelayConnectedEvent = e
+            print("PYTHON: Got relayConnected event: " + str(e) + " \ exId: " +
+                  str(exchange_id))
+        if event_type == "relay_disconnected":
+            e: RelayDisconnectedEvent = e
+            print("PYTHON: Got relayDisconnected event: " + str(e) +
+                  " \ exId: " + str(exchange_id))
+        if event_type == "relay_error":
+            e: RelayErrorEvent = e
+            print("PYTHON: Got relayError event: " + str(e) + " \ exId: " +
+                  str(exchange_id))
+        if event_type == "peer_connected":
+            e: PeerConnectedEvent = e
+            print("PYTHON: Got peerConnected event: " + str(e) + " \ exId: " +
+                  str(exchange_id))
+        if event_type == "peer_disconnected":
+            e: PeerDisconnectedEvent = e
+            print("PYTHON: Got peerDisconnected event: " + str(e) +
+                  " \ exId: " + str(exchange_id))
+        if event_type == "peer_called":
+            e: PeerCalledEvent = e
+            print("PYTHON: Got peerCalled event: " + str(e) + " \ exId: " +
+                  str(exchange_id))
+        if event_type == "peer_hungup":
+            e: PeerHungupEvent = e
+            print("PYTHON: Got peerHungup event: " + str(e) + " \ exId: " +
+                  str(exchange_id))
+        if event_type == "peer_data_conn_error":
+            e: PeerDataConnErrorEvent = e
+            print("PYTHON: Got peerDataConnError event: " + str(e) +
+                  " \ exId: " + str(exchange_id))
+        if event_type == "peer_media_conn_error":
+            e: PeerMediaConnErrorEvent = e
+            print("PYTHON: Got peerMediaConnError event: " + str(e) +
+                  " \ exId: " + str(exchange_id))
+
+
+async def send_update_messages():
+    while True:
+        await asyncio.sleep(2)
+        emoji = random.choice(list("🏔🏎🚃🕤🐔🛤🚖🎿🐼🙏🏨💞🐺👽🎯🏊🍘🍕🎡"))
+        yield SendMsgRequest(
+            exchange_id=random.randrange(4294967294),
+            target_peer_ids=["*"],
+            payload=bytes("Hello from python! Here's an emoji " + emoji + "\n",
+                          "utf-8"))
+
+
 async def start_grpc_client():
     global grpc_channel, relay_grpc_stub
     async with Channel(
@@ -71,53 +131,10 @@ async def start_grpc_client():
         # async with Channel(path="./WebrtcRelayGrpc.sock") as chan: # to use unix domain sockets as the transport for grpc
         grpc_channel = chan
         relay_grpc_stub = WebRtcRelayStub(grpc_channel)
-        eventStream = relay_grpc_stub.get_event_stream(
-            event_stream_request=EventStreamRequest())
-        async for event in eventStream:
-            exchange_id = event.exchange_id
-            (event_type, e) = betterproto.which_one_of(event, "event")
-            print("PYTHON: Got GRPC Event: " + event_type)
-            if event_type == "msg_recived":
-                e: MsgRecivedEvent = e
-                print("PYTHON: Got msgRecived event: " + str(e) + " \ exId: " +
-                      str(exchange_id))
-                await handle_msg_recived(e, exchange_id)
-            if event_type == "relay_connected":
-                e: RelayConnectedEvent = e
-                print("PYTHON: Got relayConnected event: " + str(e) +
-                      " \ exId: " + str(exchange_id))
-            if event_type == "relay_disconnected":
-                e: RelayDisconnectedEvent = e
-                print("PYTHON: Got relayDisconnected event: " + str(e) +
-                      " \ exId: " + str(exchange_id))
-            if event_type == "relay_error":
-                e: RelayErrorEvent = e
-                print("PYTHON: Got relayError event: " + str(e) + " \ exId: " +
-                      str(exchange_id))
-            if event_type == "peer_connected":
-                e: PeerConnectedEvent = e
-                print("PYTHON: Got peerConnected event: " + str(e) +
-                      " \ exId: " + str(exchange_id))
-            if event_type == "peer_disconnected":
-                e: PeerDisconnectedEvent = e
-                print("PYTHON: Got peerDisconnected event: " + str(e) +
-                      " \ exId: " + str(exchange_id))
-            if event_type == "peer_called":
-                e: PeerCalledEvent = e
-                print("PYTHON: Got peerCalled event: " + str(e) + " \ exId: " +
-                      str(exchange_id))
-            if event_type == "peer_hungup":
-                e: PeerHungupEvent = e
-                print("PYTHON: Got peerHungup event: " + str(e) + " \ exId: " +
-                      str(exchange_id))
-            if event_type == "peer_data_conn_error":
-                e: PeerDataConnErrorEvent = e
-                print("PYTHON: Got peerDataConnError event: " + str(e) +
-                      " \ exId: " + str(exchange_id))
-            if event_type == "peer_media_conn_error":
-                e: PeerMediaConnErrorEvent = e
-                print("PYTHON: Got peerMediaConnError event: " + str(e) +
-                      " \ exId: " + str(exchange_id))
+        # run the listen_to_event_stream() function in the background
+        await asyncio.gather(
+            listen_to_event_stream(),
+            relay_grpc_stub.send_msg_stream(send_update_messages()))
 
 
 ######## Main Program ###########
