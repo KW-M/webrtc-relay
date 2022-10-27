@@ -19,6 +19,7 @@ var relayConectionOpenCallback = function (relayDatachannel) {
         messageDisplayElement.appendChild(document.createTextNode(String(msg)));
     });
 
+    console.log("DC", relayDatachannel)
     // send a message to the relay every second with the current time.
     // messagePingIntervalId = setInterval(() => {
     //     relayDatachannel.send(messageEncoder.encode("Current time from BROWSER: " + Date.now()));
@@ -28,7 +29,7 @@ var relayConectionOpenCallback = function (relayDatachannel) {
     startVideoButton.disabled = false
 }
 
-// setup callback function that will be setup to run when the peer connection to the relay is closed, or failed:
+// make a function that will be setup to run when the peer connection to the relay is closed, or failed:
 // see the connectToRelay() function
 var relayConectionFailedCallback = function (error) {
     // do something w error message:
@@ -45,6 +46,27 @@ var relayConectionFailedCallback = function (error) {
     startVideoButton.disabled = true
 }
 
+// make a function that will be setup to run when a remote peer (presumably the relay, but not guaranteed) sends a media stream:
+// see the connectToRelay() function
+function mediaStreamRecivedCallback(remoteStream) {
+    console.log("Got remote stream from relay", remoteStream)
+    remoteStream.onaddtrack = function (event) {
+        console.log("Got remote track from relay", event.track)
+        createVideoPlayer(new MediaStream([event.track]));
+    }
+    createVideoPlayer(remoteStream)
+}
+
+function createVideoPlayer(MediaStream) {
+    // Add the stream to a new html video element and append it to the page:
+    var video = document.createElement('video');
+    messageDisplayElement.appendChild(video);
+    video.srcObject = MediaStream;
+    video.autoplay = true
+    video.controls = false
+    video.play();
+}
+
 // Setup the connect button
 var connectButton = document.getElementById('connect_btn')
 connectButton.addEventListener('click', () => {
@@ -53,7 +75,7 @@ connectButton.addEventListener('click', () => {
     // disable the connect button:
     connectButton.disabled = true
     // connect to the relay passing the callbacks defined above:
-    connectToRelay(relayPeerId, PEERJS_CONNECTION_OPTIONS, relayConectionOpenCallback, relayConectionFailedCallback)
+    connectToRelay(relayPeerId, PEERJS_CONNECTION_OPTIONS, relayConectionOpenCallback, relayConectionFailedCallback, mediaStreamRecivedCallback)
 });
 
 // Setup the start video button

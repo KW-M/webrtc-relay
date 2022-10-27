@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Docs/Images/Webrtc-Relay Logo.svg" alt="drawing" width="200"/>
+  <img src="Docs/Images/Webrtc-Relay Logo.svg" alt="logo" width="200"/>
   <h1 align="center">WebRTC Relay</h1>
 </p>
 Relay low latency audio/video and data between any web browser and remote devices over WebRTC. This tool is programing language independent (using gRPC) and should compile on any os where golang is supported

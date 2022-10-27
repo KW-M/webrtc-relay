@@ -54,7 +54,7 @@ func (r *RelayGRPCServer) DisconnectFromPeer(context.Context, *proto.ConnectionR
 }
 
 func (r *RelayGRPCServer) CallPeer(ctx context.Context, req *proto.CallRequest) (*proto.CallResponse, error) {
-	r.relay.CallPeers(req.GetTargetPeerIds(), req.GetRelayPeerNumber(), req.GetStreamName(), req.GetTracks(), req.GetExchangeId())
+	r.relay.CallPeers(req.GetTargetPeerIds(), req.GetRelayPeerNumber(), req.GetTracks(), req.GetExchangeId())
 	// return nil, status.Errorf(codes.Unimplemented, "method CallPeer not implemented")
 	return &proto.CallResponse{
 		Status: proto.Status_OK,

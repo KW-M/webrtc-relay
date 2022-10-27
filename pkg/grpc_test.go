@@ -92,23 +92,23 @@ func printEventStream(client proto.WebRTCRelayClient) {
 		case *proto.RelayEventStream_MsgRecived:
 			fmt.Printf("EVENT MSG: %s\n", event.MsgRecived.String())
 		case *proto.RelayEventStream_PeerConnected:
-			fmt.Printf("EVENT peer connected: %s (via relay #%d, exId %d)\n", event.PeerConnected.SrcPeerId, evt.ExchangeId, event.PeerConnected.RelayPeerNumber)
+			fmt.Printf("EVENT peer connected: %s (via relay #%d, exId %d)\n", event.PeerConnected.SrcPeerId, evt.GetExchangeId(), event.PeerConnected.GetRelayPeerNumber())
 		case *proto.RelayEventStream_PeerDisconnected:
-			fmt.Printf("EVENT peer disconnected: %s (via relay #%d, exId %d)\n", event.PeerDisconnected.SrcPeerId, evt.ExchangeId, event.PeerDisconnected.RelayPeerNumber)
+			fmt.Printf("EVENT peer disconnected: %s (via relay #%d, exId %d)\n", event.PeerDisconnected.SrcPeerId, evt.GetExchangeId(), event.PeerDisconnected.GetRelayPeerNumber())
 		case *proto.RelayEventStream_PeerCalled:
-			fmt.Printf("EVENT call from peer %s (via relay #%d, exId %d)\n", event.PeerCalled.SrcPeerId, evt.ExchangeId, event.PeerCalled.RelayPeerNumber)
+			fmt.Printf("EVENT call from peer %s (via relay #%d, exId %d)\n", event.PeerCalled.SrcPeerId, evt.GetExchangeId(), event.PeerCalled.GetRelayPeerNumber())
 		case *proto.RelayEventStream_PeerHungup:
-			fmt.Printf("EVENT hangup from peer %s (via relay #%d, exId %d)\n", event.PeerHungup.SrcPeerId, evt.ExchangeId, event.PeerHungup.RelayPeerNumber)
+			fmt.Printf("EVENT hangup from peer %s (via relay #%d, exId %d)\n", event.PeerHungup.SrcPeerId, evt.GetExchangeId(), event.PeerHungup.GetRelayPeerNumber())
 		case *proto.RelayEventStream_PeerDataConnError:
-			fmt.Printf("EVENT peer data connection error from peer: %s (via relay #%d, exId %d) type=%s %s\n", event.PeerDataConnError.SrcPeerId, evt.ExchangeId, event.PeerDataConnError.RelayPeerNumber, event.PeerDataConnError.Type.String(), event.PeerDataConnError.Msg)
+			fmt.Printf("EVENT peer data connection error from peer: %s (via relay #%d, exId %d) type=%s %s\n", event.PeerDataConnError.SrcPeerId, evt.GetExchangeId(), event.PeerDataConnError.GetRelayPeerNumber(), event.PeerDataConnError.Type.String(), event.PeerDataConnError.Msg)
 		case *proto.RelayEventStream_PeerMediaConnError:
-			fmt.Printf("EVENT peer media connection error from peer: %s (via relay #%d, exId %d) type=%s %s\n", event.PeerMediaConnError.SrcPeerId, evt.ExchangeId, event.PeerMediaConnError.RelayPeerNumber, event.PeerMediaConnError.Type.String(), event.PeerMediaConnError.Msg)
+			fmt.Printf("EVENT peer media connection error from peer: %s (via relay #%d, exId %d) type=%s %s\n", event.PeerMediaConnError.SrcPeerId, evt.GetExchangeId(), event.PeerMediaConnError.GetRelayPeerNumber(), event.PeerMediaConnError.Type.String(), event.PeerMediaConnError.Msg)
 		case *proto.RelayEventStream_RelayError:
-			fmt.Printf("EVENT relay error: [type=%s] %s (exId %d)\n", event.RelayError.Type.String(), event.RelayError.Msg, evt.ExchangeId)
+			fmt.Printf("EVENT relay error: [type=%s] %s (exId %d)\n", event.RelayError.Type.String(), event.RelayError.Msg, evt.GetExchangeId())
 		case *proto.RelayEventStream_RelayConnected:
-			fmt.Printf("EVENT relay connected: %d (exId %d)\n", event.RelayConnected.RelayPeerNumber, evt.ExchangeId)
+			fmt.Printf("EVENT relay connected: %d (exId %d)\n", event.RelayConnected.GetRelayPeerNumber(), evt.GetExchangeId())
 		case *proto.RelayEventStream_RelayDisconnected:
-			fmt.Printf("EVENT relay disconnected: %d (exId %d)\n", event.RelayDisconnected.RelayPeerNumber, evt.ExchangeId)
+			fmt.Printf("EVENT relay disconnected: %d (exId %d)\n", event.RelayDisconnected.GetRelayPeerNumber(), evt.GetExchangeId())
 		default:
 			fmt.Println("No matching operations")
 		}

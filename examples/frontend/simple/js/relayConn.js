@@ -9,7 +9,7 @@ function cleanupConnection() {
     thisPeer = null
 }
 
-function connectToRelay(relayPeerId, peerjsOptions, connectionOpenCallback, connectionFailedCallback) {
+function connectToRelay(relayPeerId, peerjsOptions, connectionOpenCallback, connectionFailedCallback, streamRecivedCallback) {
 
     // Create the peerjs peer for this browser. You can pass a set peerid as the first argument, null will give us a random unique one.
     console.info("Creating Peer...");
@@ -83,24 +83,15 @@ function connectToRelay(relayPeerId, peerjsOptions, connectionOpenCallback, conn
     // Handle when we receive a media call from the webrtc-relay (or any peer, so you should check the peerid in a real app):
     thisPeer.on('call', (call) => {
 
-        console.info('Got media channel from PeerId: ' + call.peer)
+        console.info('Got media channel from PeerId: ' + call.peer, call)
 
         // Answer the call. Webrtc-relay currently doesn't support receving media, so we can't answer with user media (PRs welcome though!).
         call.answer(null);
 
-        // Handle when the stream handshake is finished (or another stream is added to the mediachannel)
+        // Handle when a stream is ready (or another stream is added to the mediachannel)
         call.on('stream', (remoteStream) => {
-            console.info('Got media stream!');
-
-            // Add the stream to a new html video element and append it to the page:
-            var video = document.createElement('video');
-            document.body.appendChild(video);
-            video.srcObject = remoteStream;
-            video.muted = true
-            video.autoplay = true
-            video.controls = false
-            video.play();
-
+            console.info('Got media stream!', remoteStream);
+            streamRecivedCallback(remoteStream)
         });
     });
 

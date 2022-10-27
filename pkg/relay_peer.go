@@ -62,7 +62,7 @@ type RelayPeer struct {
 	onCall func(*peerjs.MediaConnection, uint32)
 	// onError: The callback to call when an error occurs
 	onError func(peerjs.PeerError, uint32)
-	// expBackoffErrorCount: The number of consecutive errors that have occurred when trying to connect to the peer server or when the connection fails
+	// expBackoffErrorCount: The number of consecutive failed attempts to connect to the peer server. Used to determine the exponential backoff timeout.
 	expBackoffErrorCount uint
 	// savedExchangeId: The exchangeId sent with the last action associated with this relay peer, used to help the webrtc-relay user correlate errors or events with the action that caused them
 	savedExchangeId uint32

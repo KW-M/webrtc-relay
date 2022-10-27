@@ -1,6 +1,8 @@
 package webrtc_relay
 
 import (
+	"fmt"
+
 	"github.com/kw-m/webrtc-relay/pkg/media"
 	"github.com/kw-m/webrtc-relay/pkg/proto"
 	peerjs "github.com/muka/peerjs-go"
@@ -126,45 +128,93 @@ func (conn *WebrtcConnectionCtrl) sendMessageToPeers(targetPeerIds []string, rel
 
 func (conn *WebrtcConnectionCtrl) streamTracksToPeers(targetPeerIds []string, relayPeerNumber uint32, trackNames []string, media *media.MediaController, exchangeId uint32) {
 	log := conn.log
-
-	// get the media source for the passed track name
-	trackSrc := media.GetTrack(trackNames[0])
-
 	peerConns := conn.getPeerConnections(targetPeerIds, relayPeerNumber)
-	for _, peerConn := range peerConns {
 
-		if peerConn.MediaConnection != nil {
-			// if an open media channel exists between us and this peer...
-			// abort if this track is already added to the media connection/channel with this peer
-			relayMediaStream := peerConn.MediaConnection.GetLocalStream()
-			relayMediaTracks := relayMediaStream.GetTracks()
-			for _, track := range relayMediaTracks {
-				if track.ID() == trackNames[0] {
+	for _, trackName := range trackNames {
+
+		// get the media track source for this track name
+		trackSrc := media.GetTrack(trackName)
+		if trackSrc == nil {
+			log.Errorf("Cannot stream track %s to peers: The track source is nil.", trackNames[0])
+			return
+		}
+
+	peerConnLoop:
+		for _, peerConn := range peerConns {
+
+			if peerConn.MediaConnection != nil {
+				// if an open media channel exists between us and this peer...
+
+				// abort if this track is already added to the media connection/channel with this peer
+				relayMediaStream := peerConn.MediaConnection.GetLocalStream()
+				relayMediaTracks := relayMediaStream.GetTracks()
+				for _, track := range relayMediaTracks {
+					if track.ID() == trackNames[0] {
+						continue peerConnLoop
+					}
+				}
+
+				peerConn.MediaConnection.PeerConnection.OnNegotiationNeeded(func() {
+					print("Negotiation needed")
+				})
+
+				// add the track to the peer media channel
+				// _, err := peerConn.MediaConnection.PeerConnection.AddTrack(trackSrc.GetTrack())
+				// if err != nil {
+				// 	log.Errorf("Error adding track %s to media connection with peer %s (via relay #%d): %v", trackNames[0], peerConn.TargetPeerId, relayPeerNumber, err)
+				// 	continue
+				// }
+				// peerConn.MediaConnection.PeerConnection.RemoveTrack(peerConn.MediaConnection.PeerConnection.GetSenders()[0])
+				for _, trackSender := range peerConn.MediaConnection.PeerConnection.GetSenders() {
+					// trackName := trackSender.Track().ID()
+					err := trackSender.ReplaceTrack(trackSrc.GetTrack())
+					if err != nil {
+						log.Errorf("Error replacing track %s to media connection with peer %s (via relay #%d): %v", trackSrc.GetTrack().ID(), peerConn.TargetPeerId, relayPeerNumber, err)
+						continue
+					} else {
+						log.Infof("Replaced track %s to media connection with peer %s (via relay #%d)", trackSrc.GetTrack().ID(), peerConn.TargetPeerId, relayPeerNumber)
+					}
+
+				}
+				// relayMediaStream.AddTrack(trackSrc.GetTrack())
+
+				relayMediaStream = peerConn.MediaConnection.GetLocalStream()
+				relayMediaTracks = relayMediaStream.GetTracks()
+				print("Tracks: ")
+				for _, track := range relayMediaTracks {
+					print(track.ID(), ", ")
+				}
+				println()
+
+				trueMediaSenders := peerConn.MediaConnection.PeerConnection.GetSenders()
+				print("Senders: ")
+				for _, sender := range trueMediaSenders {
+					fmt.Printf("%v, ", sender.GetParameters())
+				}
+				println()
+			} else {
+
+				// if a media channel doesn't exist with this peer, create one by calling that peer:
+				mediaConn, err := peerConn.RelayPeer.CallPeer(peerConn.TargetPeerId, trackSrc.GetTrack(), peerjs.NewConnectionOptions(), exchangeId)
+				if err != nil {
+					log.Error("Error media calling remote peer: ", peerConn.TargetPeerId)
+					errorType, ok := proto.PeerConnErrorTypes_value[err.Error()]
+					if !ok {
+						errorType = int32(proto.PeerConnErrorTypes_UNKNOWN_ERROR)
+					}
+					conn.sendPeerMediaConnErrorEvent(peerConn.RelayPeer.relayPeerNumber, peerConn.TargetPeerId, proto.PeerConnErrorTypes(errorType), "Error media calling remote peer")
 					return
 				}
+
+				mediaConn.PeerConnection.OnNegotiationNeeded(func() {
+					conn.log.Warn("Media: PeerConnection.OnNegotiationNeeded")
+				})
 			}
-
-			// add the track to the peer media channel
-			relayMediaStream.AddTrack(trackSrc.GetTrack())
-
-		} else {
-
-			// if a media channel doesn't exist with this peer, create one by calling that peer:
-			_, err := peerConn.RelayPeer.CallPeer(peerConn.TargetPeerId, trackSrc.GetTrack(), peerjs.NewConnectionOptions(), exchangeId)
-			if err != nil {
-				log.Error("Error media calling remote peer: ", peerConn.TargetPeerId)
-				errorType, ok := proto.PeerConnErrorTypes_value[err.Error()]
-				if !ok {
-					errorType = int32(proto.PeerConnErrorTypes_UNKNOWN_ERROR)
-				}
-				conn.sendPeerMediaConnErrorEvent(peerConn.RelayPeer.relayPeerNumber, peerConn.TargetPeerId, proto.PeerConnErrorTypes(errorType), "Error media calling remote peer")
-			}
-
 		}
 	}
 }
 
-func (conn *WebrtcConnectionCtrl) stopMediaStream(media *media.MediaController, exchangeId uint32) {
+func (conn *WebrtcConnectionCtrl) stopMediaStream(media *media.MediaController, peerId string, exchangeId uint32) {
 	// TODO: implement
 	log := conn.log
 	log.Warn("TODO: Implement stopMediaStream()")

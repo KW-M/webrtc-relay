@@ -1,25 +1,18 @@
 package webrtc_relay
 
 import (
-	"errors"
 	"fmt"
 
-	wr_config "github.com/kw-m/webrtc-relay/pkg/config"
+	wrConfig "github.com/kw-m/webrtc-relay/pkg/config"
 	"github.com/kw-m/webrtc-relay/pkg/media"
 	"github.com/kw-m/webrtc-relay/pkg/proto"
 	"github.com/kw-m/webrtc-relay/pkg/util"
+	peerjs "github.com/muka/peerjs-go"
 	"github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 )
 
 type WebrtcRelay struct {
-
-	// // RelayInputMessageChannel: Push a message onto this channel to send that message to any or all open datachannels (ie: to the client(s))
-	// // NOTE: mesages sent are expected to have metadata json & separtor string before the actual message (if config.AddMetadataToBackendMessages is true)
-	// RelayInputMessageChannel chan string
-	// // RelayOutputMessageChannel: Whenever a message is recived from any open datachannel, it is pushed onto this channel.
-	// // NOTE: messages from this channel will contain prepended metadata json & separtor string before the actual message (if config.AddMetadataToBackendMessages is true)
-	// RelayOutputMessageChannel chan string
 
 	// eventStream: The eventSub that all the events from the relay will get pushed to.
 	eventStream *util.EventSub[proto.RelayEventStream]
@@ -34,7 +27,7 @@ type WebrtcRelay struct {
 	mediaCtrl *media.MediaController
 
 	// Config options for this WebrtcRelay
-	config wr_config.WebrtcRelayConfig
+	config wrConfig.WebrtcRelayConfig
 
 	// The signal used to stop the WebrtcRelay & all its sub-components
 	stopRelaySignal util.UnblockSignal
@@ -52,11 +45,11 @@ type WebrtcRelay struct {
 //	import relay "github.com/kw-m/webrtc-relay/pkg"
 //	import relay_config "github.com/kw-m/webrtc-relay/pkg/config"
 //	relay.NewWebrtcRelay(relay_config.GetDefaultRelayConfig())
-func NewWebrtcRelay(config wr_config.WebrtcRelayConfig) *WebrtcRelay {
+func NewWebrtcRelay(config wrConfig.WebrtcRelayConfig) *WebrtcRelay {
 
 	// Set up the logrus logger
 	var rLog *log.Entry = log.WithField("mod", "webrtc-relay")
-	level, err := wr_config.StringToLogLevel(config.LogLevel)
+	level, err := wrConfig.StringToLogLevel(config.LogLevel)
 	if err != nil {
 		rLog.Warn(err.Error())
 	}
@@ -115,6 +108,7 @@ func (relay *WebrtcRelay) Start() {
 					}
 				case *proto.RelayEventStream_PeerConnected:
 					relay.Log.Debugf("EVENT peer connected: %s (via relay #%d, exId %d)\n", event.PeerConnected.GetSrcPeerId(), evt.GetExchangeId(), event.PeerConnected.GetRelayPeerNumber())
+					relay.CallTest()
 				case *proto.RelayEventStream_PeerDisconnected:
 					relay.Log.Debugf("EVENT peer disconnected: %s (via relay #%d, exId %d)\n", event.PeerDisconnected.GetSrcPeerId(), evt.GetExchangeId(), event.PeerDisconnected.GetRelayPeerNumber())
 				case *proto.RelayEventStream_PeerCalled:
@@ -171,75 +165,173 @@ func (relay *WebrtcRelay) DisconnectFromPeer(peerId string, relayPeerNumber uint
 	relay.connCtrl.disconnectFromPeer(peerId, relayPeerNumber, exchangeId)
 }
 
-// CallPeer: Calls a peerjs peer with a media stream and one track (audio/video)
-// Param targetPeerIds ([]string): The peerIds of the peers to call or []string{"*"} to call all peers
-// Param relayPeerNumber (int): The relayPeerNumber of the relay peer you want to close the connection on (if 0, every RelayPeer will attempt to connect to the peer in parallel)
-// Param streamName (string): The name of the media channel stream to use
-// Param trackName (string): The name of the track within the stream to add (empty string will not add a track)
-// Param rtpSourceUrl (string): The url of the rtp source to use for the track (empty string will not add a track)
-func (relay *WebrtcRelay) CallPeers(targetPeerIds []string, relayPeerNumber uint32, streamName string, tracks []*proto.TrackInfo, exchangeId uint32) error {
-	if len(tracks) > 1 {
-		return errors.New("more than one track isn't supported for now")
+// AddMediaTrackRtpSource: Adds a new rtp-based media track source to the media controller to be used in media calls (does not start a call)
+func (relay *WebrtcRelay) AddMediaTrackRtpSource(track *proto.TrackInfo) error {
+	params := webrtc.RTPCodecParameters{
+		RTPCodecCapability: webrtc.RTPCodecCapability{
+			MimeType:    track.Codec.GetMimeType(),
+			ClockRate:   track.Codec.GetClockRate(),
+			Channels:    uint16(track.Codec.GetChannels()),
+			SDPFmtpLine: track.Codec.GetSDPFmtpLine(),
+		},
+		PayloadType: webrtc.PayloadType(track.Codec.GetPayloadType()),
 	}
-
-	for _, track := range tracks {
-		params := webrtc.RTPCodecParameters{
-			RTPCodecCapability: webrtc.RTPCodecCapability{
-				MimeType:    track.Codec.GetMimeType(),
-				ClockRate:   track.Codec.GetClockRate(),
-				Channels:    uint16(track.Codec.GetChannels()),
-				SDPFmtpLine: track.Codec.GetSDPFmtpLine(),
-			},
-			PayloadType: webrtc.PayloadType(track.Codec.GetPayloadType()),
-		}
-		_, err := relay.mediaCtrl.AddRtpTrack(track.Name, track.Kind, track.GetRtpSourceUrl(), params)
-		if err != nil {
-			return err
-		}
+	_, err := relay.mediaCtrl.AddRtpTrack(track.Name, track.Kind, track.GetRtpSourceUrl(), params)
+	if err != nil {
+		return err
 	}
-
-	// TODO: Support multiple tracks
-
-	relay.connCtrl.streamTracksToPeers(targetPeerIds, relayPeerNumber, []string{tracks[0].Name}, relay.mediaCtrl, exchangeId)
 	return nil
 }
 
-// AddMediaTrack: add aditional tracks to an open media call
-// can be called again with the same peerid and stream name to  (audio/video)
+// AddMediaTrackRawSource: Add a new pion-webrtc media track source to the relay media contoller to be used in media calls (does not start a call)
+// TODO Fix docs! can be called again with the same peerid and stream name to add aditional tracks (audio/video)
 // can be called again with the same peerid, stream name and trackName to replace the track (pass an empty rtpSourceUrl to stop the track)
 // Param targetPeerIds ([]string): The peerIds of the peers to call or []string{"*"} to call all peers
 // Param relayPeerNumber (int): The relayPeerNumber of the relay peer you want to close the connection on (if 0, every RelayPeer will attempt to connect to the peer in parallel)
-// Param streamName (string): The name of the media channel stream to use
 // Param trackName (string): The name of the track within the stream we are adding / replacing
 // Param rtpSourceUrl (string): The url of the rtp source to use for the track (empty string will stop the track if it exists)
-func (relay *WebrtcRelay) AddMediaTrack(targetPeerIds []string, relayPeerNumber uint32, streamName string, trackName string, mimeType string, rtpSourceUrl string, exchangeId uint32) error {
-	relay.Log.Warn("TODO: Implement AddMediaTrack()")
-	// _, err := relay.mediaCtrl.AddRtpTrack(trackName, mimeType, rtpSourceUrl)
-	// if err != nil {
-	// 	return err
-	// }
-	// relay.connCtrl.streamTrackToPeers(targetPeerIds, relayPeerNumber, trackName, relay.mediaCtrl, exchangeId)
-	return nil
-}
-
-// AddMediaTrackDirect: Calls a peerjs peer with a pion media track object
-// can be called again with the same peerid and stream name to add aditional tracks (audio/video)
-// can be called again with the same peerid, stream name and trackName to replace the track (pass an empty rtpSourceUrl to stop the track)
-// Param targetPeerIds ([]string): The peerIds of the peers to call or []string{"*"} to call all peers
-// Param relayPeerNumber (int): The relayPeerNumber of the relay peer you want to close the connection on (if 0, every RelayPeer will attempt to connect to the peer in parallel)
-// Param streamName (string): The name of the media channel stream to use
-// Param trackName (string): The name of the track within the stream we are adding / replacing
-// Param rtpSourceUrl (string): The url of the rtp source to use for the track (empty string will stop the track if it exists)
-func (relay *WebrtcRelay) AddMediaTrackDirect(targetPeerIds []string, relayPeerNumber uint32, streamName string, trackName string, rtpSourceUrl string, exchangeId uint32) error {
+func (relay *WebrtcRelay) AddMediaTrackRawSource(trackName string) error {
 	relay.Log.Warn("TODO: Implement AddMediaTrackDirect()")
 	return nil
+}
+
+// ReplaceMediaTrackSource: Replaces a media track source with a new one in the media contoller
+// TODO: will cause all peer connections using this media track to switch to the new track (possibly renegotiate?)
+func (relay *WebrtcRelay) ReplaceMediaTrackSource(trackNameToReplace string, newTrack *proto.TrackInfo, exchangeId uint32) error {
+	// if this track source is new, add it to the media controller:
+	if relay.mediaCtrl.GetTrack(newTrack.GetName()) == nil && relay.mediaCtrl.GetTrack(trackNameToReplace) == nil {
+		relay.AddMediaTrackRtpSource(newTrack)
+	} else {
+		err, oldTrack := relay.mediaCtrl.RemoveTrack(trackNameToReplace, false)
+		if err != nil {
+			relay.ReplaceMediaTrackInCalls([]string{"*"}, 0, trackNameToReplace, newTrack, exchangeId)
+			oldTrack.Close()
+		}
+	}
+	return nil
+}
+
+// CallPeer: Calls one or more peerjs peers with a media channel/stream containing one or more tracks (audio or video)
+// Param targetPeerIds ([]string): The peerIds of the peers to call or []string{"*"} to call all peers
+// Param relayPeerNumber (int): The relayPeerNumber of the relay peer you want to close the connection on (if 0, every RelayPeer will attempt to connect to the peer in parallel)
+// DEPRECATED Param streamId (string): The name of the media channel/stream (must be unique per peer connection)
+// Param tracks (trackInfo): The details of the tracks to put in the media call.
+// Param exchangeId (uint32): The exchangeId to
+func (relay *WebrtcRelay) CallPeers(targetPeerIds []string, relayPeerNumber uint32, tracks []*proto.TrackInfo, exchangeId uint32) error {
+	return nil
+	trackNames := make([]string, len(tracks))
+	for i, track := range tracks {
+		trackName := track.GetName()
+		trackNames[i] = trackName
+		// add all the new tracks to the media controller:
+		if relay.mediaCtrl.GetTrack(trackName) == nil {
+			relay.AddMediaTrackRtpSource(track)
+		}
+	}
+
+	relay.connCtrl.streamTracksToPeers(targetPeerIds, relayPeerNumber, trackNames, relay.mediaCtrl, exchangeId)
+	return nil
+}
+
+func (relay *WebrtcRelay) CallTest() {
+	// relay.AddMediaTrackRtpSource(track)
+
+	mdw := newMediaDevicesWrapper()
+	mediaEngine := webrtc.MediaEngine{}
+	mdw.CodecSelector.Populate(&mediaEngine)
+	track := mdw.getUserMediaStream()
+	connOpts := peerjs.NewConnectionOptions()
+	connOpts.MediaEngine = &mediaEngine
+
+	peerConns := relay.connCtrl.getPeerConnections([]string{"*"}, 0)
+	peerConn := peerConns[0]
+
+	// if a media channel doesn't exist with this peer, create one by calling that peer:
+	mediaConn, err := peerConn.RelayPeer.CallPeer(peerConn.TargetPeerId, track.GetVideoTracks()[0], connOpts, 1)
+	if err != nil {
+		log.Error("Error media calling remote peer: ", peerConn.TargetPeerId)
+		errorType, ok := proto.PeerConnErrorTypes_value[err.Error()]
+		if !ok {
+			errorType = int32(proto.PeerConnErrorTypes_UNKNOWN_ERROR)
+		}
+		log.Warn("Error media calling remote peer", proto.PeerConnErrorTypes(errorType))
+		return
+	}
+
+	mediaConn.PeerConnection.OnNegotiationNeeded(func() {
+		log.Warn("Media: PeerConnection.OnNegotiationNeeded")
+	})
 }
 
 // HangupPeer: Closes the media call with a peerjs peer
 // Param peerId (string): The peerId of the peer to hangup
 func (relay *WebrtcRelay) HangupPeer(peerId string, relayPeerNumber uint32, exchangeId uint32) {
-	relay.connCtrl.stopMediaStream(relay.mediaCtrl, exchangeId)
+	relay.connCtrl.stopMediaStream(relay.mediaCtrl, peerId, exchangeId)
 }
+
+// AddMediaTrackToCalls: Calls a peerjs peer with a pion media track object
+func (relay *WebrtcRelay) AddMediaTrackToCalls(targetPeerIds []string, relayPeerNumber uint32, newTrack *proto.TrackInfo, exchangeId uint32) error {
+
+	// if this track source is new, add it to the media controller:
+	if relay.mediaCtrl.GetTrack(newTrack.GetName()) == nil {
+		relay.AddMediaTrackRtpSource(newTrack)
+	}
+
+	// add the track to all the given peer media connections:
+	connections := relay.connCtrl.getPeerConnections(targetPeerIds, relayPeerNumber)
+	for _, conn := range connections {
+		if conn.MediaConnection != nil {
+			conn.MediaConnection.PeerConnection.AddTrack(relay.mediaCtrl.GetTrack(newTrack.GetName()).GetTrack())
+		}
+	}
+	return nil
+}
+
+// ReplaceMediaTrackInCalls: Calls a peerjs peer with a pion media track object
+func (relay *WebrtcRelay) ReplaceMediaTrackInCalls(targetPeerIds []string, relayPeerNumber uint32, trackNameToReplace string, newTrack *proto.TrackInfo, exchangeId uint32) error {
+
+	// if this track source is new, add it to the media controller:
+	if relay.mediaCtrl.GetTrack(newTrack.GetName()) == nil {
+		relay.AddMediaTrackRtpSource(newTrack)
+	}
+
+	// replace the track in all the given peer media connections:
+	connections := relay.connCtrl.getPeerConnections(targetPeerIds, relayPeerNumber)
+	for _, conn := range connections {
+		if conn.MediaConnection != nil {
+			for _, trackSender := range conn.MediaConnection.PeerConnection.GetSenders() {
+				trackName := trackSender.Track().ID()
+				if trackName == trackNameToReplace {
+					trackSender.ReplaceTrack(relay.mediaCtrl.GetTrack(newTrack.GetName()).GetTrack())
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// func (relay *WebrtcRelay) ReplaceMediaTrackInCalls(targetPeerIds []string, relayPeerNumber uint32, trackNamesToReplace []string, newTracks []*proto.TrackInfo, rtpSourceUrl string, exchangeId uint32) error {
+// 	relay.Log.Warn("TODO: Implement ReplaceMediaTrackInCalls()")
+// 	connections := relay.connCtrl.getPeerConnections(targetPeerIds, relayPeerNumber)
+// 	for _, conn := range connections {
+// 		if conn.MediaConnection != nil {
+// 			for _, trackSender := range conn.MediaConnection.PeerConnection.GetSenders() {
+// 				trackName := trackSender.Track().ID()
+// 				for i, trackNameToReplace := range trackNamesToReplace {
+// 					if trackName == trackNameToReplace {
+// 						if i > len(newTracks) {
+// 							log.Warnf("No replacement track given for track %s", trackNameToReplace)
+// 							break
+// 						}
+// 						track := newTracks[i]
+// 						trackSender.ReplaceTrack(relay.mediaCtrl.GetTrack(track.Name).GetTrack())
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }
 
 // SendMsg: Sends a message to one or more peerjs peer(s)
 func (relay *WebrtcRelay) SendMsg(targetPeerIds []string, msgPayload []byte, relayPeerNumber uint32, exchangeId uint32) {
