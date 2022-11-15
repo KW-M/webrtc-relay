@@ -2,16 +2,6 @@ package media
 
 // DEPRICATED
 
-import (
-	"fmt"
-	"os"
-	"testing"
-	"time"
-
-	"github.com/kw-m/webrtc-relay/pkg/namedpipe"
-	"github.com/stretchr/testify/assert"
-)
-
 // func Test_Interceptor_BindUnbind(t *testing.T) {
 // 	var (
 // 		cntBindRTCPReader     uint32
@@ -59,31 +49,31 @@ import (
 // 	assert.NoError(t, err)
 // }
 
-func TestNamedPipeMediaSource(t *testing.T) {
-	pipeFilePath := "./namedPipeMediaSourceTest.pipe"
+// func TestNamedPipeMediaSource(t *testing.T) {
+// 	pipeFilePath := "./namedPipeMediaSourceTest.pipe"
 
-	// create the media source named pipe to recive the fake data:
-	mediaSrc, err := CreateNamedPipeMediaSource(pipeFilePath, 1024, time.Millisecond*33, "video/unknown", "testMediaTrack")
-	assert.NoError(t, err)
-	go mediaSrc.StartMediaStream()
+// 	// create the media source named pipe to recive the fake data:
+// 	mediaSrc, err := CreateNamedPipeMediaSource(pipeFilePath, 1024, time.Millisecond*33, "video/unknown", "testMediaTrack")
+// 	assert.NoError(t, err)
+// 	go mediaSrc.StartMediaStream()
 
-	// create the named pipe to write fake data too:
-	mediaGeneratorPipe, err := namedpipe.CreateNamedPipeRelay(pipeFilePath, 0666, os.O_WRONLY, 0)
-	assert.NoError(t, err)
-	go mediaGeneratorPipe.RunPipeLoops()
+// 	// create the named pipe to write fake data too:
+// 	mediaGeneratorPipe, err := namedpipe.CreateNamedPipeRelay(pipeFilePath, 0666, os.O_WRONLY, 0)
+// 	assert.NoError(t, err)
+// 	go mediaGeneratorPipe.RunPipeLoops()
 
-	go func() {
-		<-time.After(time.Millisecond * 10)
-		var i int = 0
-		for i < 1000 {
-			mediaGeneratorPipe.SendBytesToPipe([]byte(fmt.Sprint(i % 9)))
-		}
-	}()
+// 	go func() {
+// 		<-time.After(time.Millisecond * 10)
+// 		var i int = 0
+// 		for i < 1000 {
+// 			mediaGeneratorPipe.SendBytesToPipe([]byte(fmt.Sprint(i % 9)))
+// 		}
+// 	}()
 
-	time.Sleep(time.Millisecond * 100)
-	// var i int = 0
+// 	time.Sleep(time.Millisecond * 100)
+// 	// var i int = 0
 
-	mediaGeneratorPipe.Close()
-	mediaSrc.Close()
-	os.Remove(pipeFilePath)
-}
+// 	mediaGeneratorPipe.Close()
+// 	mediaSrc.Close()
+// 	os.Remove(pipeFilePath)
+// }

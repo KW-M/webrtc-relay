@@ -12,6 +12,8 @@ var relayWebrtcDatachannel = null
 // setup callback function that will be setup to run when the connection to the relay is open:
 // see the connectToRelay() function
 var relayConectionOpenCallback = function (relayDatachannel) {
+
+
     // Receive messages
     relayDatachannel.on('data', (data) => {
         msg = messageDecoder.decode(data);

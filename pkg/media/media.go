@@ -3,9 +3,15 @@ package media
 import (
 	"errors"
 	"strings"
+	"time"
 
+	peerjs "github.com/muka/peerjs-go"
 	"github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	H264FrameDuration = time.Millisecond * 33
 )
 
 type MediaSource interface {
@@ -19,12 +25,21 @@ type MediaSource interface {
 
 type MediaController struct {
 	// map of media streams being sent to this relay from the backend or frontend clients (key is the track name)
-	MediaSources map[string]MediaSource
+	MediaSources   map[string]MediaSource
+	DevicesWrapper *mediaDevicesWrapper
+	MediaEngine    webrtc.MediaEngine
 }
 
 func NewMediaController() *MediaController {
+
+	mdw := newMediaDevicesWrapper()
+	mediaEngine := webrtc.MediaEngine{}
+	mdw.CodecSelector.Populate(&mediaEngine)
+
 	return &MediaController{
-		MediaSources: make(map[string]MediaSource),
+		MediaSources:   make(map[string]MediaSource),
+		DevicesWrapper: mdw,
+		MediaEngine:    mediaEngine,
 	}
 }
 
@@ -71,6 +86,12 @@ func (mediaCtrl *MediaController) AddRtpTrack(trackName string, kind string, rtp
 
 	// return the new media source
 	return mediaSrc, nil
+}
+
+func (mediaCtrl *MediaController) GetCallConnectionOptions() *peerjs.ConnectionOptions {
+	connOpts := peerjs.NewConnectionOptions()
+	connOpts.MediaEngine = &mediaCtrl.MediaEngine
+	return connOpts
 }
 
 //// AddRawTrack: add a new raw track to the media controller and start listening for incoming samples

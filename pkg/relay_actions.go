@@ -158,33 +158,33 @@ func (conn *WebrtcConnectionCtrl) streamTracksToPeers(targetPeerIds []string, re
 					print("Negotiation needed")
 				})
 
-				// add the track to the peer media channel
-				// _, err := peerConn.MediaConnection.PeerConnection.AddTrack(trackSrc.GetTrack())
-				// if err != nil {
-				// 	log.Errorf("Error adding track %s to media connection with peer %s (via relay #%d): %v", trackNames[0], peerConn.TargetPeerId, relayPeerNumber, err)
-				// 	continue
+				// // add the track to the peer media channel
+				// // _, err := peerConn.MediaConnection.PeerConnection.AddTrack(trackSrc.GetTrack())
+				// // if err != nil {
+				// // 	log.Errorf("Error adding track %s to media connection with peer %s (via relay #%d): %v", trackNames[0], peerConn.TargetPeerId, relayPeerNumber, err)
+				// // 	continue
+				// // }
+				// // peerConn.MediaConnection.PeerConnection.RemoveTrack(peerConn.MediaConnection.PeerConnection.GetSenders()[0])
+				// for _, trackSender := range peerConn.MediaConnection.PeerConnection.GetSenders() {
+				// 	// trackName := trackSender.Track().ID()
+				// 	err := trackSender.ReplaceTrack(trackSrc.GetTrack())
+				// 	if err != nil {
+				// 		log.Errorf("Error replacing track %s to media connection with peer %s (via relay #%d): %v", trackSrc.GetTrack().ID(), peerConn.TargetPeerId, relayPeerNumber, err)
+				// 		continue
+				// 	} else {
+				// 		log.Infof("Replaced track %s to media connection with peer %s (via relay #%d)", trackSrc.GetTrack().ID(), peerConn.TargetPeerId, relayPeerNumber)
+				// 	}
+
 				// }
-				// peerConn.MediaConnection.PeerConnection.RemoveTrack(peerConn.MediaConnection.PeerConnection.GetSenders()[0])
-				for _, trackSender := range peerConn.MediaConnection.PeerConnection.GetSenders() {
-					// trackName := trackSender.Track().ID()
-					err := trackSender.ReplaceTrack(trackSrc.GetTrack())
-					if err != nil {
-						log.Errorf("Error replacing track %s to media connection with peer %s (via relay #%d): %v", trackSrc.GetTrack().ID(), peerConn.TargetPeerId, relayPeerNumber, err)
-						continue
-					} else {
-						log.Infof("Replaced track %s to media connection with peer %s (via relay #%d)", trackSrc.GetTrack().ID(), peerConn.TargetPeerId, relayPeerNumber)
-					}
+				// // relayMediaStream.AddTrack(trackSrc.GetTrack())
 
-				}
-				// relayMediaStream.AddTrack(trackSrc.GetTrack())
-
-				relayMediaStream = peerConn.MediaConnection.GetLocalStream()
-				relayMediaTracks = relayMediaStream.GetTracks()
-				print("Tracks: ")
-				for _, track := range relayMediaTracks {
-					print(track.ID(), ", ")
-				}
-				println()
+				// relayMediaStream = peerConn.MediaConnection.GetLocalStream()
+				// relayMediaTracks = relayMediaStream.GetTracks()
+				// print("Tracks: ")
+				// for _, track := range relayMediaTracks {
+				// 	print(track.ID(), ", ")
+				// }
+				// println()
 
 				trueMediaSenders := peerConn.MediaConnection.PeerConnection.GetSenders()
 				print("Senders: ")

@@ -3,6 +3,7 @@ package config
 import (
 	peerjs "github.com/muka/peerjs-go"
 	peerjsServer "github.com/muka/peerjs-go/server"
+	"github.com/pion/mediadevices/pkg/frame"
 	webrtc "github.com/pion/webrtc/v3"
 )
 
@@ -12,6 +13,13 @@ type WebrtcRelayConfig struct {
 	// a list of peer servers to attempt to connect to in parallel when the relay starts up (see PeerInitOptions type for details)
 	// Default: !!empty list!!
 	PeerInitConfigs []*PeerInitOptions
+
+	// MediaSources: a list of media sources to use for the relay (see MediaSourceConfig type for details)
+	// Default: !!empty list!!
+	MediaSources []*MediaSourceConfig
+
+	// Automatically stream these media sources to peers when they connect to the relay, based on the label of the media source.
+	AutoStreamMediaSources []string
 
 	// the webrtc-relay will try to aquire a peerjs peer id that is this string with an int tacked on the end.
 	// if that peer id is taken, it will increment the ending int and try again.
@@ -57,6 +65,37 @@ type WebrtcRelayConfig struct {
 	// see: https://go.dev/blog/pprof
 	// Default: false
 	GoProfilingServerEnabled bool
+}
+
+type MediaSourceConfig struct {
+	// kind is video or audio (or screen, camera, vnc, microphone to attempt to get system default media devices with Pion MediaDevices)
+	Kind string
+	// SourceLabel is the id/label to use to refer to this media source later
+	SourceLabel string
+	// SourceCmd is the command to run to get the media stream (for video and audio only)
+	SourceCmd string `json:"SourceCmd,omitempty"`
+
+	// width is the width of the video stream (video formats only)
+	Width int `json:"Width,omitempty"`
+	// height is the height of the video stream  (video formats only)
+	Height int `json:"Height,omitempty"`
+	// frameRate is the frame rate of the video stream (video formats only)
+	FrameRate float32 `json:"FrameRate,omitempty"`
+	// PixelFormat is the pixel format of each frame of the video stream (video formats only, and only raw pixel formats are supported)
+	PixelFormat frame.Format `json:"PixelFormat,omitempty"`
+
+	// sampleRate is the sample rate of the audio stream (audio formats only)
+	SampleRate int `json:"SampleRate,omitempty"`
+	// sampleSize is the number of bytes per sample [Eg: for a 32bit int value samples this would be 4 because 4*8 = 32 bits] (audio formats only)
+	SampleSize int `json:"SampleSize,omitempty"`
+	// isFloat is whether or not the audio stream samples are represented as float or int (audio formats only)
+	IsFloat bool `json:"IsFloat,omitempty"`
+	// IsBigEndian is whether or not the audio stream samples use big (BE) or little endian (LE) numbers (audio formats only)
+	IsBigEndian bool `json:"IsBigEndian,omitempty"`
+	// channelCount is the number of channels in the audio stream (audio formats only)
+	ChannelCount int `json:"ChannelCount,omitempty"`
+	// isInterleaved is whether or not the audio stream channels are interleaved (audio formats only)
+	IsInterleaved bool `json:"IsInterleaved,omitempty"`
 }
 
 type PeerInitOptions struct {

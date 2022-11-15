@@ -7,7 +7,8 @@ import (
 	"github.com/kw-m/webrtc-relay/pkg/media"
 	"github.com/kw-m/webrtc-relay/pkg/proto"
 	"github.com/kw-m/webrtc-relay/pkg/util"
-	peerjs "github.com/muka/peerjs-go"
+
+	"github.com/pion/mediadevices"
 	"github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 )
@@ -35,6 +36,8 @@ type WebrtcRelay struct {
 	// Log: The logrus logger to use for debug logs within WebrtcRelay Code
 	Log *log.Entry
 }
+
+var stream0, stream1 mediadevices.MediaStream
 
 // Creates a new webrtc-relay instance. Call Start() to start the relay.
 //
@@ -84,6 +87,11 @@ func (relay *WebrtcRelay) Start() {
 		}
 	}()
 
+	// add all the media sources from the config
+	for _, mediaSourceConfig := range relay.config.MediaSources {
+		relay.mediaCtrl.DevicesWrapper.AddVideoCmdSource(mediaSourceConfig)
+	}
+
 	// Start all of the initial peers specified in the config
 	for _, initOptions := range relay.config.PeerInitConfigs {
 		relay.connCtrl.AddRelayPeer(initOptions, 0)
@@ -108,7 +116,7 @@ func (relay *WebrtcRelay) Start() {
 					}
 				case *proto.RelayEventStream_PeerConnected:
 					relay.Log.Debugf("EVENT peer connected: %s (via relay #%d, exId %d)\n", event.PeerConnected.GetSrcPeerId(), evt.GetExchangeId(), event.PeerConnected.GetRelayPeerNumber())
-					relay.CallTest()
+					relay.AutoCall(event.PeerConnected.GetSrcPeerId())
 				case *proto.RelayEventStream_PeerDisconnected:
 					relay.Log.Debugf("EVENT peer disconnected: %s (via relay #%d, exId %d)\n", event.PeerDisconnected.GetSrcPeerId(), evt.GetExchangeId(), event.PeerDisconnected.GetRelayPeerNumber())
 				case *proto.RelayEventStream_PeerCalled:
@@ -233,21 +241,42 @@ func (relay *WebrtcRelay) CallPeers(targetPeerIds []string, relayPeerNumber uint
 	return nil
 }
 
-func (relay *WebrtcRelay) CallTest() {
+func (relay *WebrtcRelay) listenForRTCPPackets(rtpSender *webrtc.RTPSender) {
+	// Read incoming RTCP packets
+	// Before these packets are returned they are processed by interceptors.
+	// For things like NACK this needs to be called.
+	rtcpBuf := make([]byte, 1500)
+	for {
+		if _, _, rtcpErr := rtpSender.Read(rtcpBuf); rtcpErr != nil {
+			return
+		}
+	}
+}
+
+func (relay *WebrtcRelay) AutoCall(targetPeerId string) {
 	// relay.AddMediaTrackRtpSource(track)
+	log := relay.Log
+	if len(relay.config.AutoStreamMediaSources) == 0 {
+		return
+	}
 
-	mdw := newMediaDevicesWrapper()
-	mediaEngine := webrtc.MediaEngine{}
-	mdw.CodecSelector.Populate(&mediaEngine)
-	track := mdw.getUserMediaStream()
-	connOpts := peerjs.NewConnectionOptions()
-	connOpts.MediaEngine = &mediaEngine
+	var mediaSources []mediadevices.MediaStream
+	for _, mediaSourceLabel := range relay.config.AutoStreamMediaSources {
+		if src := relay.mediaCtrl.DevicesWrapper.GetMediaStream(mediaSourceLabel); src == nil {
+			log.Warnf("Media source %s not found", mediaSourceLabel)
+			continue
+		} else {
+			mediaSources = append(mediaSources, src)
+		}
+	}
 
-	peerConns := relay.connCtrl.getPeerConnections([]string{"*"}, 0)
+	peerConns := relay.connCtrl.getPeerConnections([]string{targetPeerId}, 0)
 	peerConn := peerConns[0]
 
+	//https://www.cs.auckland.ac.nz/courses/compsci773s1c/lectures/YuY2.htm
+	log.Error("Calling remote peer: ", peerConn.TargetPeerId)
 	// if a media channel doesn't exist with this peer, create one by calling that peer:
-	mediaConn, err := peerConn.RelayPeer.CallPeer(peerConn.TargetPeerId, track.GetVideoTracks()[0], connOpts, 1)
+	mediaConn, err := peerConn.RelayPeer.CallPeer(peerConn.TargetPeerId, mediaSources[0].GetVideoTracks()[0], relay.mediaCtrl.GetCallConnectionOptions(), 1)
 	if err != nil {
 		log.Error("Error media calling remote peer: ", peerConn.TargetPeerId)
 		errorType, ok := proto.PeerConnErrorTypes_value[err.Error()]
@@ -257,6 +286,38 @@ func (relay *WebrtcRelay) CallTest() {
 		log.Warn("Error media calling remote peer", proto.PeerConnErrorTypes(errorType))
 		return
 	}
+
+	// go func() {
+	// 	<-time.After(10 * time.Second)
+	// 	if stream0 == nil {
+	// 		stream0 = relay.mdw.getUserMediaStream("ffmpeg_0")
+	// 	}
+	// 	// trackSender := mediaConn.PeerConnection.GetSenders()[0]
+	// 	// err := trackSender.ReplaceTrack(stream0.GetVideoTracks()[0])
+	// 	// if err != nil {
+	// 	// 	log.Error("Error replacing track: ", err)
+	// 	// }
+
+	// 	// log.Warn("Media: Remove track")
+	// 	// err := mediaConn.PeerConnection.RemoveTrack(trackSender)
+	// 	// if err != nil {
+	// 	// 	log.Error("Error removing track: ", err)
+	// 	// }
+	// 	// mediaConn.PeerConnection.AddTransceiverFromTrack()
+	// 	log.Warn("Media: Add track")
+	// 	rtpSender, err := mediaConn.PeerConnection.AddTrack(stream0.GetVideoTracks()[0])
+	// 	if err != nil {
+	// 		log.Error("Error adding track: ", err)
+	// 	}
+
+	// 	log.Warn("Media: listenForRTCPPackets offer")
+	// 	err = mediaConn.Renegotiate()
+	// 	if err != nil {
+	// 		log.Error("Error making offer: ", err)
+	// 	}
+	// 	go relay.listenForRTCPPackets(rtpSender)
+
+	// }()
 
 	mediaConn.PeerConnection.OnNegotiationNeeded(func() {
 		log.Warn("Media: PeerConnection.OnNegotiationNeeded")
