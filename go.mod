@@ -3,7 +3,7 @@ module github.com/kw-m/webrtc-relay
 go 1.18
 
 require (
-	github.com/muka/peerjs-go v0.0.0-20220903110206-98090c8b91eb
+	github.com/muka/peerjs-go v0.0.0-20221106184718-1f7e6f02ee86
 	github.com/pion/webrtc/v3 v3.1.47
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.1
@@ -51,4 +51,4 @@ require (
 
 replace github.com/muka/peerjs-go => github.com/kw-m/peerjs-go v0.0.0-20221026222843-ef6f3f7b9637
 
-replace github.com/pion/mediadevices => github.com/KW-M/mediadevices v0.0.0-20221030043321-6c6d2451553b
+replace github.com/pion/mediadevices => github.com/KW-M/mediadevices v0.0.0-20221115030114-7140b7d4fdca

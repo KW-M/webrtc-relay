@@ -29,6 +29,15 @@
             "FrameRate": 30,
             "Width": 640,
             "Height": 480
+        },
+        {
+            "Kind": "video",
+            "SourceLabel": "raspberrypi_video",
+            "SourceCmd": "libcamera-vid --width 640 --height 480 --framerate 16 --codec yuv420 --flush 1 --timeout 0 --nopreview 1 --output -",
+            "PixelFormat": "I420",
+            "FrameRate": 16,
+            "Width": 640,
+            "Height": 480
         }
     ],
     "AutoStreamMediaSources": [
