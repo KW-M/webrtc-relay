@@ -61,12 +61,11 @@ func main() {
 	select {
 	case <-programShouldQuitSignal.GetSignal():
 		log.Println("Quit program channel triggered, exiting.")
-		return
 	case <-systemExitCalled:
 		log.Println("ctrl+c or other system interrupt received, exiting.")
 		programShouldQuitSignal.Trigger() // tell the go subroutines to exit by closing the programShouldQuitSignal channel
-		return
 	}
+	<-time.After(500 * time.Millisecond) // delay to allow the go subroutines and processies (like ffmpeg) to exit cleanly
 }
 
 // func scheduleWrite(pipe *NamedPipeRelay) {

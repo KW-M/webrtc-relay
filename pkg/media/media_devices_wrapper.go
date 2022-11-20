@@ -14,8 +14,12 @@ import (
 	// or if you use a raspberry pi like, you can use mmal for using its hardware encoder
 	// "github.com/pion/mediadevices/pkg/codec/mmal"
 	// "github.com/pion/mediadevices/pkg/codec/opus" // This is required to use opus audio encoder
-	"github.com/pion/mediadevices/pkg/codec/vpx" // This is required to use h264 video encoder
+	// This is required to use h264 video encoder
+
+	"github.com/pion/mediadevices/pkg/codec/vpx"
 	"github.com/pion/mediadevices/pkg/codec/x264"
+
+	// "github.com/pion/mediadevices/pkg/codec/x264"
 	"github.com/pion/mediadevices/pkg/prop"
 
 	// Note: If you don't have a camera or microphone or your adapters are not supported,
@@ -80,17 +84,24 @@ func newMediaDevicesWrapper() *mediaDevicesWrapper {
 
 	// configure h264 codec specific parameters
 	x264Params, _ := x264.NewParams()
-	x264Params.Preset = x264.PresetMedium
-	x264Params.BitRate = 1_000_000 // 1mbps
+	x264Params.Preset = x264.PresetUltrafast
+	x264Params.BitRate = 1_000_000 // 1mbps to start
+
+	// configure vp9 codec specific parameters
+	vp9Params, _ := vpx.NewVP9Params()
+	vp9Params.BitRate = 100_000 // 1mbps to start
+	vp9Params.LagInFrames = 1
+	// vp9Params.ErrorResilient = vpx.ErrorResilientPartitions
+	// vp9Params.LagInFrames = 1
 
 	// configure vp8 codec specific parameters
 	vp8Params, _ := vpx.NewVP8Params()
-	vp8Params.BitRate = 1_000_000 // 1mbps
+	vp8Params.BitRate = 1_000_000 // 1mbps to start
 	vp8Params.ErrorResilient = vpx.ErrorResilientPartitions
 	vp8Params.LagInFrames = 1
 
 	mdw.CodecSelector = mediadevices.NewCodecSelector(
-		mediadevices.WithVideoEncoders(&vp8Params, &x264Params),
+		mediadevices.WithVideoEncoders(&x264Params), //&x264Params
 	)
 
 	return mdw
@@ -140,4 +151,12 @@ func (mdw *mediaDevicesWrapper) GetMediaStream(deviceLabel string) mediadevices.
 		mdw.Streams[deviceLabel] = mdw.storeMediaStreamReference(deviceLabel)
 	}
 	return mdw.Streams[deviceLabel]
+}
+
+func (mdw *mediaDevicesWrapper) Cleanup() {
+	for _, stream := range mdw.Streams {
+		for _, track := range stream.GetTracks() {
+			track.Close()
+		}
+	}
 }

@@ -52,7 +52,7 @@ func TestGRPCRelay(t *testing.T) {
 		t.Error("Relay peer not found with number: ", peerInitConfig.RelayPeerNumber)
 	}
 	relayId := relayPeer.GetPeerId()
-	frontendPeer, _ := testWithFrontendPeer(t, relayId, peerInitConfig, true, true)
+	frontendPeer, _ := testWithFrontendPeer(t, relayId, peerInitConfig, true, true, false)
 	defer frontendPeer.Destroy()
 
 	<-time.After(2 * time.Second)

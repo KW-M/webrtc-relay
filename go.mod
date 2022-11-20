@@ -51,4 +51,4 @@ require (
 
 replace github.com/muka/peerjs-go => github.com/kw-m/peerjs-go v0.0.0-20221026222843-ef6f3f7b9637
 
-replace github.com/pion/mediadevices => github.com/KW-M/mediadevices v0.0.0-20221115030114-7140b7d4fdca
+replace github.com/pion/mediadevices => github.com/kw-m/mediadevices v0.0.0-20221117215358-3d5236992551

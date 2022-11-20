@@ -57,8 +57,6 @@ dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/KW-M/mediadevices v0.0.0-20221115030114-7140b7d4fdca h1:K6lW8cZVbWZVTrD+ghK7DNdu3RHYdPQGj0oMukxUMq0=
-github.com/KW-M/mediadevices v0.0.0-20221115030114-7140b7d4fdca/go.mod h1:vL5NStOC2PyWd0CNjjqzZY5sEwEimYGaN6E2WzhJtjM=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
 github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
@@ -285,6 +283,8 @@ github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
+github.com/kw-m/mediadevices v0.0.0-20221117215358-3d5236992551 h1:/AiL+y+7fubNh0joan85H/EKqOCRmoeBcsHCskHYlIE=
+github.com/kw-m/mediadevices v0.0.0-20221117215358-3d5236992551/go.mod h1:vL5NStOC2PyWd0CNjjqzZY5sEwEimYGaN6E2WzhJtjM=
 github.com/kw-m/peerjs-go v0.0.0-20221026222843-ef6f3f7b9637 h1:QM6IY0C3kofsXfByyL8Ab2brpscvkTFsmjCDyjRgI6g=
 github.com/kw-m/peerjs-go v0.0.0-20221026222843-ef6f3f7b9637/go.mod h1:gaZm3b/XZaNck7uKXvCXvyXS/VCL3TS53WhoelrEAec=
 github.com/lxn/win v0.0.0-20210218163916-a377121e959e/go.mod h1:KxxjdtRkfNoYDCUP5ryK7XJJNTnpC8atvtmTheChOtk=

@@ -13,10 +13,12 @@ function connectToRelay(relayPeerId, peerjsOptions, connectionOpenCallback, conn
 
     // Create the peerjs peer for this browser. You can pass a set peerid as the first argument, null will give us a random unique one.
     console.info("Creating Peer...");
-    thisPeer = new Peer(null, peerjsOptions);
+    let peerId = localStorage.getItem("browserPeerId")
+    thisPeer = new Peer(peerId != undefined ? peerId : null, peerjsOptions);
 
     // This event is called when the peer server to acknowledge that it knows about us and give us a unique peer id.
     thisPeer.on('open', (realPeerId) => {
+        localStorage.setItem("browserPeerId", realPeerId)
         console.info("Connection to peer server established! Our PeerID:", realPeerId);
 
         // ---------------------------------------------------------------------------------------------------------------------
@@ -77,6 +79,7 @@ function connectToRelay(relayPeerId, peerjsOptions, connectionOpenCallback, conn
         } else {
             console.error("Peerjs error:", err)
         }
+        localStorage.removeItem("browserPeerId")
         connectionFailedCallback(err)
     });
 

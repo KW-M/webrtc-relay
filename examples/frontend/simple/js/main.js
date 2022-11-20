@@ -18,14 +18,16 @@ var relayConectionOpenCallback = function (relayDatachannel) {
     relayDatachannel.on('data', (data) => {
         msg = messageDecoder.decode(data);
         // add the message to the page:
-        messageDisplayElement.appendChild(document.createTextNode(String(msg)));
+        messageDisplayElement.appendChild(document.createTextNode(String(msg) + "\n"));
+
+        relayDatachannel.send(messageEncoder.encode("B" + String(msg)));
     });
 
     console.log("DC", relayDatachannel)
     // send a message to the relay every second with the current time.
-    // messagePingIntervalId = setInterval(() => {
-    //     relayDatachannel.send(messageEncoder.encode("Current time from BROWSER: " + Date.now()));
-    // }, 1000);
+    messagePingIntervalId = setInterval(() => {
+        relayDatachannel.send(messageEncoder.encode("BR_TIME: " + Date.now()));
+    }, 100);
 
     relayWebrtcDatachannel = relayDatachannel
     startVideoButton.disabled = false
@@ -102,6 +104,6 @@ window.addEventListener('keypress', () => {
 });
 
 // when the user closes their browser / tab, close & cleanup the peer connection:
-window.onbeforeunload = () => {
-    cleanupConnection();
-}
+// window.onbeforeunload = () => {
+//     cleanupConnection();
+// }

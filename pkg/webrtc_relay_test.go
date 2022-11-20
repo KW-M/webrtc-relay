@@ -63,6 +63,12 @@ func TestCloudMsgRelay(t *testing.T) {
 	testMsgRelay(t, cloudProgramConfig)
 }
 
+func TestStressCloudMsgRelay(t *testing.T) {
+	// create a new relay
+	cloudProgramConfig := createCloudTestConfig(true)
+	stressTestMsgRelay(t, cloudProgramConfig)
+}
+
 func TestLocalMsgRelay(t *testing.T) {
 	// create a new relay
 	localProgramConfigWithServer := createLocalTestConfig(true)
@@ -76,7 +82,7 @@ func createFrontendPeer(t *testing.T, peerInitConfig *relay_config.PeerInitOptio
 	return frontendPeer
 }
 
-func testWithFrontendPeer(t *testing.T, relayId string, peerInitConfig *relay_config.PeerInitOptions, connectToRelay bool, mediaCallRelay bool) (*peer.Peer, [4]string) {
+func testWithFrontendPeer(t *testing.T, relayId string, peerInitConfig *relay_config.PeerInitOptions, connectToRelay bool, mediaCallRelay bool, msgStressTest bool) (*peer.Peer, [4]string) {
 	frontendPeer := createFrontendPeer(t, peerInitConfig)
 
 	frontendMessagesToSend := [...]string{
@@ -106,6 +112,9 @@ func testWithFrontendPeer(t *testing.T, relayId string, peerInitConfig *relay_co
 				dataConn.On("data", func(msgBytes interface{}) {
 					msg := string(msgBytes.([]byte))
 					println("Frontend peer:Got msg from relay:", msg)
+					if msgStressTest {
+						assert.NoError(t, dataConn.Send([]byte("F:"+msg), false))
+					}
 				})
 			})
 		} else {
@@ -117,6 +126,9 @@ func testWithFrontendPeer(t *testing.T, relayId string, peerInitConfig *relay_co
 				dc.On("data", func(msgBytes interface{}) {
 					msg := string(msgBytes.([]byte))
 					println("Frontend peer: Got msg from relay:", msg)
+					if msgStressTest {
+						assert.NoError(t, dc.Send([]byte("FRply:"+msg), false))
+					}
 				})
 			})
 		}
@@ -169,7 +181,7 @@ func testMsgRelay(t *testing.T, config relay_config.WebrtcRelayConfig) {
 		t.Error("Relay peer not found with number: ", peerInitConfig.RelayPeerNumber)
 	}
 	relayId := relayPeer.GetPeerId()
-	frontendPeer, frontendMessagesToSend := testWithFrontendPeer(t, relayId, peerInitConfig, true, false)
+	frontendPeer, frontendMessagesToSend := testWithFrontendPeer(t, relayId, peerInitConfig, true, false, false)
 	defer frontendPeer.Destroy()
 
 	// get the relay peer's data connection:
@@ -192,6 +204,55 @@ func testMsgRelay(t *testing.T, config relay_config.WebrtcRelayConfig) {
 				}
 				msgIndex++
 				if msgIndex == len(frontendMessagesToSend) {
+					return
+				}
+			}
+		case <-time.After(time.Second * 15):
+			t.Error("Timeout waiting for message to be recived on relay")
+		}
+	}
+}
+
+func stressTestMsgRelay(t *testing.T, config relay_config.WebrtcRelayConfig) {
+	// print out the passed config:
+	fmt.Printf("stress testing webrtcRelayConfig: %+v\n", config)
+
+	// create and start the webrtc_relay:
+	relay := NewWebrtcRelay(config)
+	relay.Start()
+	defer relay.Stop()
+
+	// give the relay time to start up
+	<-time.After(time.Second * 5)
+	println("--------- Starting Client Peer ---------")
+
+	// create a test "frontend" peer:
+	peerInitConfig := config.PeerInitConfigs[0]
+	relayPeer, ok := relay.connCtrl.RelayPeers[peerInitConfig.RelayPeerNumber]
+	if !ok {
+		t.Error("Relay peer not found with number: ", peerInitConfig.RelayPeerNumber)
+	}
+	relayId := relayPeer.GetPeerId()
+	frontendPeer, _ := testWithFrontendPeer(t, relayId, peerInitConfig, true, false, true)
+	defer frontendPeer.Destroy()
+
+	// get the relay peer's data connection:
+	msgIndex := 0
+	relayEvents := relay.GetEventStream()
+	for {
+		select {
+		case evt := <-relayEvents:
+			switch event := evt.Event.(type) {
+			case *proto.RelayEventStream_PeerConnected:
+				println("Relay: Peer Connected: ", event.PeerConnected.SrcPeerId)
+			case *proto.RelayEventStream_PeerDisconnected:
+				println("Relay: Peer Disconnected: ", event.PeerDisconnected.SrcPeerId)
+			case *proto.RelayEventStream_MsgRecived:
+				msg := string(event.MsgRecived.Payload)
+				println("relay1 received: " + msg)
+				relay.SendMsg([]string{event.MsgRecived.SrcPeerId}, []byte("B:"+msg), event.MsgRecived.RelayPeerNumber, 123)
+				msgIndex++
+				if msgIndex > 9000 {
 					return
 				}
 			}
