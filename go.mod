@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/muka/peerjs-go v0.0.0-20221106184718-1f7e6f02ee86
-	github.com/pion/webrtc/v3 v3.1.47
+	github.com/pion/webrtc/v3 v3.1.48
 	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/exp v0.0.0-20221031165847-c99f073a8326
@@ -41,7 +41,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	golang.org/x/crypto v0.1.0 // indirect
-	golang.org/x/image v0.0.0-20220902085622-e7cb96979f69 // indirect
+	golang.org/x/image v0.1.0 // indirect
 	golang.org/x/net v0.1.0 // indirect
 	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/text v0.4.0 // indirect
@@ -51,4 +51,4 @@ require (
 
 replace github.com/muka/peerjs-go => github.com/kw-m/peerjs-go v0.0.0-20221026222843-ef6f3f7b9637
 
-replace github.com/pion/mediadevices => github.com/kw-m/mediadevices v0.0.0-20221117215358-3d5236992551
+replace github.com/pion/mediadevices => github.com/kw-m/mediadevices v0.0.0-20221121030856-5ce9dff357c8

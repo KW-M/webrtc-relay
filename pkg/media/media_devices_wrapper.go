@@ -69,7 +69,7 @@ func newMediaDevicesWrapper() *mediaDevicesWrapper {
 	// // configure source video
 	// cmdString, mediaProps := getVideoCmdFfmpeg("testsrc", 640, 480, 30, frame.FormatI420)
 	// mediaProps.DeviceID = "ffmpeg 1"
-	// err := cmdsource.AddVideoCmdSource(cmdString, []prop.Media{mediaProps}, 10)
+	// err := cmdsource.AddVideoCmdSource(cmdString, []prop.Media{mediaProps}, 10, true)
 	// if err != nil {
 	// 	panic(err)
 	// }
@@ -77,31 +77,31 @@ func newMediaDevicesWrapper() *mediaDevicesWrapper {
 	// // configure source video
 	// cmdString2, mediaProps2 := getVideoCmdFfmpeg("testsrc2", 640, 480, 30, frame.FormatI420)
 	// mediaProps2.DeviceID = "ffmpeg 2"
-	// err = cmdsource.AddVideoCmdSource(cmdString2, []prop.Media{mediaProps2}, 10)
+	// err = cmdsource.AddVideoCmdSource(cmdString2, []prop.Media{mediaProps2}, 10, true)
 	// if err != nil {
 	// 	panic(err)
 	// }
 
 	// configure h264 codec specific parameters
 	x264Params, _ := x264.NewParams()
-	x264Params.Preset = x264.PresetUltrafast
-	x264Params.BitRate = 1_000_000 // 1mbps to start
+	// x264Params.Preset = x264.PresetUltrafast
+	// x264Params.BitRate = 1_000_000 // 1mbps to start
 
 	// configure vp9 codec specific parameters
-	vp9Params, _ := vpx.NewVP9Params()
-	vp9Params.BitRate = 100_000 // 1mbps to start
-	vp9Params.LagInFrames = 1
-	// vp9Params.ErrorResilient = vpx.ErrorResilientPartitions
+	// vp9Params, _ := vpx.NewVP9Params()
+	// vp9Params.BitRate = 100_000 // 1mbps to start
 	// vp9Params.LagInFrames = 1
+	// // vp9Params.ErrorResilient = vpx.ErrorResilientPartitions
+	// // vp9Params.LagInFrames = 1
 
 	// configure vp8 codec specific parameters
 	vp8Params, _ := vpx.NewVP8Params()
-	vp8Params.BitRate = 1_000_000 // 1mbps to start
-	vp8Params.ErrorResilient = vpx.ErrorResilientPartitions
-	vp8Params.LagInFrames = 1
+	// vp8Params.BitRate = 300_000 // 1mbps to start
+	// vp8Params.ErrorResilient = vpx.ErrorResilientPartitions
+	// vp8Params.LagInFrames = 100
 
 	mdw.CodecSelector = mediadevices.NewCodecSelector(
-		mediadevices.WithVideoEncoders(&x264Params), //&x264Params
+		mediadevices.WithVideoEncoders(&vp8Params, &x264Params), //,
 	)
 
 	return mdw
@@ -118,7 +118,7 @@ func (mdw *mediaDevicesWrapper) AddVideoCmdSource(config *wrConfig.MediaSourceCo
 				FrameRate:   config.FrameRate,
 			},
 		}
-	err := cmdsource.AddVideoCmdSource(config.SourceLabel, config.SourceCmd, []prop.Media{mediaProps}, 10)
+	err := cmdsource.AddVideoCmdSource(config.SourceLabel, config.SourceCmd, []prop.Media{mediaProps}, 10, true)
 	return err
 }
 

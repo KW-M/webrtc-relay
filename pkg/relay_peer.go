@@ -137,7 +137,9 @@ func (p *RelayPeer) GetMediaConnection(peerId string) *peerjs.MediaConnection {
 
 func (p *RelayPeer) CallPeer(peerId string, track webrtc.TrackLocal, opts *peerjs.ConnectionOptions, exchangeId uint32) (*peerjs.MediaConnection, error) {
 	if mc, ok := p.openMediaConnections[peerId]; ok && mc.conn.Open {
-		return mc.conn, nil
+		// return mc.conn, nil
+		mc.conn.Close()
+		println("!!!!!!!!!!!!  closed existing media connection")
 	}
 	mc, err := p.peer.Call(peerId, track, opts)
 	if err != nil {
@@ -149,7 +151,8 @@ func (p *RelayPeer) CallPeer(peerId string, track webrtc.TrackLocal, opts *peerj
 
 func (p *RelayPeer) ConnectToPeer(peerId string, opts *peerjs.ConnectionOptions, exchangeId uint32) (*peerjs.DataConnection, error) {
 	if dc, ok := p.openDataConnections[peerId]; ok && dc.conn.Open {
-		return dc.conn, nil
+		// return dc.conn, nil
+		dc.conn.Close()
 	}
 	dc, err := p.peer.Connect(peerId, opts)
 	if err != nil {
