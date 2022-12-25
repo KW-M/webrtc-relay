@@ -32,7 +32,7 @@ func (es *EventSub[Typ]) Subscribe() <-chan *Typ {
 	return ch
 }
 
-func (es *EventSub[Typ]) UnSubscribe(c *chan *Typ) {
+func (es *EventSub[Typ]) UnSubscribe(c *<-chan *Typ) {
 	es.mu.Lock()
 	defer es.mu.Unlock()
 

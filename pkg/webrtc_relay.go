@@ -124,9 +124,9 @@ func (relay *WebrtcRelay) Start() {
 						relay.Log.Debugf("EVENT MSG: %s", event.MsgRecived.String())
 						// relay.Log.Debugf("MSG EVENT->BKEND: %s, (peer %s via relay #%d) ", event.MsgRecived.GetSrcPeerId(), event.MsgRecived.GetRelayPeerNumber(), string(event.MsgRecived.GetPayload()))
 						/* debug reply */
-						go func() {
-							relay.SendMsg([]string{event.MsgRecived.GetSrcPeerId()}, event.MsgRecived.GetPayload(), event.MsgRecived.GetRelayPeerNumber(), 123)
-						}()
+						// go func() {
+						// 	relay.SendMsg([]string{event.MsgRecived.GetSrcPeerId()}, event.MsgRecived.GetPayload(), event.MsgRecived.GetRelayPeerNumber(), 123)
+						// }()
 					}
 				case *proto.RelayEventStream_PeerConnected:
 					relay.Log.Debugf("EVENT peer connected: %s (via relay #%d, exId %d)\n", event.PeerConnected.GetSrcPeerId(), evt.GetExchangeId(), event.PeerConnected.GetRelayPeerNumber())
@@ -160,6 +160,7 @@ func (relay *WebrtcRelay) Start() {
 	go func() {
 		// handle passing input messages to the webrtc controller to get sent out to peers
 		inputStream := relay.inputMessageStream.Subscribe()
+		defer relay.inputMessageStream.UnSubscribe(&inputStream)
 		for {
 			select {
 			case msg := <-inputStream:
@@ -182,6 +183,10 @@ func (relay *WebrtcRelay) Stop() {
 
 func (relay *WebrtcRelay) GetEventStream() <-chan *proto.RelayEventStream {
 	return relay.eventStream.Subscribe()
+}
+
+func (relay *WebrtcRelay) CloseEventStream(evtStreamChan *<-chan *proto.RelayEventStream) {
+	relay.eventStream.UnSubscribe(evtStreamChan)
 }
 
 // ConnectToPeer: Attempts to connect to a peerjs peer

@@ -20,6 +20,7 @@ type RelayGRPCServer struct {
 
 func (r *RelayGRPCServer) GetEventStream(req *proto.EventStreamRequest, stream proto.WebRTCRelay_GetEventStreamServer) error {
 	eventStream := r.relay.GetEventStream()
+	defer r.relay.CloseEventStream(&eventStream)
 	for {
 		select {
 		case event := <-eventStream:
