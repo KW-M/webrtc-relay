@@ -121,26 +121,21 @@ func (relay *WebrtcRelay) Start() {
 				switch event := evt.Event.(type) {
 				case *proto.RelayEventStream_MsgRecived:
 					if relay.config.IncludeMessagesInLogs {
-						relay.Log.Debugf("EVENT MSG: %s", event.MsgRecived.String())
-						// relay.Log.Debugf("MSG EVENT->BKEND: %s, (peer %s via relay #%d) ", event.MsgRecived.GetSrcPeerId(), event.MsgRecived.GetRelayPeerNumber(), string(event.MsgRecived.GetPayload()))
-						/* debug reply */
-						// go func() {
-						// 	relay.SendMsg([]string{event.MsgRecived.GetSrcPeerId()}, event.MsgRecived.GetPayload(), event.MsgRecived.GetRelayPeerNumber(), 123)
-						// }()
+						relay.Log.Debugf("RCVD MSG (from %s, via relay #%d): %s", event.MsgRecived.GetSrcPeerId(), event.MsgRecived.GetRelayPeerNumber(), event.MsgRecived.GetPayload())
 					}
 				case *proto.RelayEventStream_PeerConnected:
 					relay.Log.Debugf("EVENT peer connected: %s (via relay #%d, exId %d)\n", event.PeerConnected.GetSrcPeerId(), evt.GetExchangeId(), event.PeerConnected.GetRelayPeerNumber())
 					relay.AutoCall(event.PeerConnected.GetSrcPeerId())
 				case *proto.RelayEventStream_PeerDisconnected:
-					relay.Log.Debugf("EVENT peer disconnected: %s (via relay #%d, exId %d)\n", event.PeerDisconnected.GetSrcPeerId(), evt.GetExchangeId(), event.PeerDisconnected.GetRelayPeerNumber())
+					relay.Log.Debugf("EVENT peer disconnected %s (via relay #%d, exId %d)\n", event.PeerDisconnected.GetSrcPeerId(), evt.GetExchangeId(), event.PeerDisconnected.GetRelayPeerNumber())
 				case *proto.RelayEventStream_PeerCalled:
 					relay.Log.Debugf("EVENT call from peer %s (via relay #%d, exId %d)\n", event.PeerCalled.GetSrcPeerId(), evt.GetExchangeId(), event.PeerCalled.GetRelayPeerNumber())
 				case *proto.RelayEventStream_PeerHungup:
 					relay.Log.Debugf("EVENT hangup from peer %s (via relay #%d, exId %d)\n", event.PeerHungup.GetSrcPeerId(), evt.GetExchangeId(), event.PeerHungup.GetRelayPeerNumber())
 				case *proto.RelayEventStream_PeerDataConnError:
-					relay.Log.Debugf("EVENT peer data connection error from peer: %s (via relay #%d, exId %d) type=%s %s\n", event.PeerDataConnError.GetSrcPeerId(), evt.GetExchangeId(), event.PeerDataConnError.GetRelayPeerNumber(), event.PeerDataConnError.GetType().String(), event.PeerDataConnError.GetMsg())
+					relay.Log.Debugf("EVENT peer data connection error (peer %s, via relay #%d, exId %d) type=%s %s\n", event.PeerDataConnError.GetSrcPeerId(), evt.GetExchangeId(), event.PeerDataConnError.GetRelayPeerNumber(), event.PeerDataConnError.GetType().String(), event.PeerDataConnError.GetMsg())
 				case *proto.RelayEventStream_PeerMediaConnError:
-					relay.Log.Debugf("EVENT peer media connection error from peer: %s (via relay #%d, exId %d) type=%s %s\n", event.PeerMediaConnError.GetSrcPeerId(), evt.GetExchangeId(), event.PeerMediaConnError.GetRelayPeerNumber(), event.PeerMediaConnError.GetType().String(), event.PeerMediaConnError.GetMsg())
+					relay.Log.Debugf("EVENT peer media connection error (peer %s, via relay #%d, exId %d) type=%s %s\n", event.PeerMediaConnError.GetSrcPeerId(), evt.GetExchangeId(), event.PeerMediaConnError.GetRelayPeerNumber(), event.PeerMediaConnError.GetType().String(), event.PeerMediaConnError.GetMsg())
 				case *proto.RelayEventStream_RelayError:
 					relay.Log.Debugf("EVENT relay error: [type=%s] %s (exId %d)\n", event.RelayError.GetType().String(), event.RelayError.GetMsg(), evt.GetExchangeId())
 				case *proto.RelayEventStream_RelayConnected:
@@ -165,7 +160,7 @@ func (relay *WebrtcRelay) Start() {
 			select {
 			case msg := <-inputStream:
 				if relay.config.IncludeMessagesInLogs {
-					relay.Log.Debugf("SENDING MSG (targetPeers=%v | via relay #%d | exId %d): %s", msg.GetTargetPeerIds(), msg.GetRelayPeerNumber(), msg.GetExchangeId(), string(msg.GetPayload()))
+					relay.Log.Debugf("SENDING MSG (to %v | via relay #%d | exId %d): %s", msg.GetTargetPeerIds(), msg.GetRelayPeerNumber(), msg.GetExchangeId(), string(msg.GetPayload()))
 				}
 				relay.connCtrl.sendMessageToPeers(msg.GetTargetPeerIds(), msg.GetRelayPeerNumber(), msg.GetPayload(), msg.GetExchangeId())
 			case <-relay.stopRelaySignal.GetSignal():
@@ -427,7 +422,6 @@ func (relay *WebrtcRelay) ReplaceMediaTrackInCalls(targetPeerIds []string, relay
 // SendMsg: Sends a message to one or more peerjs peer(s)
 func (relay *WebrtcRelay) SendMsg(targetPeerIds []string, msgPayload []byte, relayPeerNumber uint32, exchangeId uint32) {
 	// relay.connCtrl.sendMessageToPeers(targetPeerIds, 0, msgPayload, exchangeId)
-	log.Print("PUSHING MESSAGE TO STREAM")
 	relay.inputMessageStream.Push(&proto.SendMsgRequest{
 		Payload:         msgPayload,
 		TargetPeerIds:   targetPeerIds,

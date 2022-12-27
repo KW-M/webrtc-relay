@@ -111,7 +111,6 @@ func (conn *WebrtcConnectionCtrl) sendMessageToPeers(targetPeerIds []string, rel
 	for _, peerConn := range peerConns {
 		if peerConn.DataConnection != nil {
 			if relayPeerNumber == 0 || peerConn.RelayPeer.relayPeerNumber == relayPeerNumber {
-				log.Infof("Sending message to peer %s (via relay #%d)", peerConn.TargetPeerId, relayPeerNumber)
 				err := peerConn.DataConnection.Send(msgBytes, false)
 				if err != nil {
 					log.Error("Error sending message to peer: ", peerConn.TargetPeerId, " err: ", err)
