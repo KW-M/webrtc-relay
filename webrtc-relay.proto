@@ -8,6 +8,7 @@ option java_outer_classname = "WebrtcRelayProto";
 
 package webrtcrelay;
 
+
 // Terminology:
 // - A "peer" is a peerjs peer either on relay side or on the frontend/remote side.
 // - A "relayPeer" is a peerjs peer on the relay side (can be multiple).
@@ -22,7 +23,7 @@ package webrtcrelay;
 // usages in different languages
 // ## Python
 // pip install "betterproto[compiler]"
-// --python_betterproto_out=lib example.proto
+// protoc --python_betterproto_out=examples/python/protobuf webrtc-relay.proto
 //
 
 // enum RelayEventTypes {

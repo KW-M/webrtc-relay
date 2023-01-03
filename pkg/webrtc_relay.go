@@ -2,16 +2,39 @@ package webrtc_relay
 
 import (
 	"fmt"
+	"path/filepath"
+	"runtime"
 
 	wrConfig "github.com/kw-m/webrtc-relay/pkg/config"
 	"github.com/kw-m/webrtc-relay/pkg/media"
 	"github.com/kw-m/webrtc-relay/pkg/proto"
 	"github.com/kw-m/webrtc-relay/pkg/util"
 
+	sys_log "log"
+
 	"github.com/pion/mediadevices"
 	"github.com/pion/webrtc/v3"
 	log "github.com/sirupsen/logrus"
 )
+
+func init() {
+	// to change the flags on the default logger
+	sys_log.SetFlags(sys_log.LstdFlags | sys_log.Lshortfile)
+	sys_log.SetFlags(sys_log.Flags() &^ (sys_log.Ldate | sys_log.Ltime))
+	log.SetReportCaller(true)
+	log.Infof("Log Setup")
+	log.SetFormatter(&log.TextFormatter{
+		// DisableColors:    true,
+		DisableTimestamp: true,
+		DisableQuote:     true,
+		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			filename := filepath.Base(f.File)
+			// fmt.Sprintf("%s()", f.Function)
+			return "", fmt.Sprintf("%s:%d", filename, f.Line)
+		},
+	})
+
+}
 
 type WebrtcRelay struct {
 
@@ -115,13 +138,14 @@ func (relay *WebrtcRelay) Start() {
 	go func() {
 		// handle logging events
 		evtStream := relay.eventStream.Subscribe()
+		defer relay.eventStream.UnSubscribe(&evtStream)
 		for {
 			select {
 			case evt := <-evtStream:
 				switch event := evt.Event.(type) {
 				case *proto.RelayEventStream_MsgRecived:
 					if relay.config.IncludeMessagesInLogs {
-						relay.Log.Debugf("RCVD MSG (from %s, via relay #%d): %s", event.MsgRecived.GetSrcPeerId(), event.MsgRecived.GetRelayPeerNumber(), event.MsgRecived.GetPayload())
+						relay.Log.Debugf("RCVD MSG (from %s, via relay #%d): %v", event.MsgRecived.GetSrcPeerId(), event.MsgRecived.GetRelayPeerNumber(), event.MsgRecived.GetPayload())
 					}
 				case *proto.RelayEventStream_PeerConnected:
 					relay.Log.Debugf("EVENT peer connected: %s (via relay #%d, exId %d)\n", event.PeerConnected.GetSrcPeerId(), evt.GetExchangeId(), event.PeerConnected.GetRelayPeerNumber())
@@ -160,7 +184,7 @@ func (relay *WebrtcRelay) Start() {
 			select {
 			case msg := <-inputStream:
 				if relay.config.IncludeMessagesInLogs {
-					relay.Log.Debugf("SENDING MSG (to %v | via relay #%d | exId %d): %s", msg.GetTargetPeerIds(), msg.GetRelayPeerNumber(), msg.GetExchangeId(), string(msg.GetPayload()))
+					relay.Log.Debugf("SENDING MSG (to %v | via relay #%d | exId %d): %s", msg.GetTargetPeerIds(), msg.GetRelayPeerNumber(), msg.GetExchangeId(), string(msg.GetPayload()[:]))
 				}
 				relay.connCtrl.sendMessageToPeers(msg.GetTargetPeerIds(), msg.GetRelayPeerNumber(), msg.GetPayload(), msg.GetExchangeId())
 			case <-relay.stopRelaySignal.GetSignal():

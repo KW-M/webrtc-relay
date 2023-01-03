@@ -49,6 +49,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/muka/peerjs-go => github.com/kw-m/peerjs-go v0.0.0-20221026222843-ef6f3f7b9637
+// To get updated version string: go get github.com/kw-m/peerjs-go@<git commit hash>
+replace github.com/muka/peerjs-go => github.com/kw-m/peerjs-go v0.0.0-20221230185817-758b743e593c
 
-replace github.com/pion/mediadevices => github.com/kw-m/mediadevices v0.0.0-20221121030856-5ce9dff357c8
+// To get updated version string:  go get github.com/KW-M/mediadevices@<git commit hash>
+replace github.com/pion/mediadevices => github.com/KW-M/mediadevices v0.0.0-20221231205930-39923b2ca968

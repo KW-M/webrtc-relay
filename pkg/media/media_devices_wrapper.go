@@ -28,9 +28,11 @@ import (
 	"github.com/pion/mediadevices/pkg/driver"
 	"github.com/pion/mediadevices/pkg/driver/cmdsource"
 	"github.com/pion/mediadevices/pkg/frame"
+
 	// _ "github.com/pion/mediadevices/pkg/driver/audiotest"
 	// _ "github.com/pion/mediadevices/pkg/driver/camera" // This is required to register camera adapter
 	// _ "github.com/pion/mediadevices/pkg/driver/microphone" // This is required to register microphone adapter
+	log "github.com/sirupsen/logrus"
 )
 
 var ffmpegFrameFormatMap = map[frame.Format]string{
@@ -127,7 +129,7 @@ func (mdw *mediaDevicesWrapper) storeMediaStreamReference(deviceLabel string) me
 		return d.Info().DeviceType == driver.CmdSource && d.Info().Label == deviceLabel
 	})
 	if len(drivers) == 0 {
-		panic("no driver found")
+		log.Fatal("Failed to find the media devices driver for device label: " + deviceLabel)
 	}
 	id := drivers[0].ID()
 	mediaStream, err := mediadevices.GetUserMedia(mediadevices.MediaStreamConstraints{
@@ -137,10 +139,23 @@ func (mdw *mediaDevicesWrapper) storeMediaStreamReference(deviceLabel string) me
 		Codec: mdw.CodecSelector, // let GetUsermedia know available codecs
 	})
 
-	// mediaStream.GetTracks()[0].(*mediadevices.VideoTrack).Source
-
 	if err != nil {
-		panic(err)
+		log.Fatal("Failed to GetUserMedia() with the given driver/device label", err)
+	}
+
+	// Must set the OnEnded event to prevent tracks from hanging the program on close:
+	for _, track := range mediaStream.GetTracks() {
+		switch track.(type) {
+		case *mediadevices.VideoTrack:
+			// do something
+		case *mediadevices.AudioTrack:
+			// do something
+		}
+		track.OnEnded(func(err error) {
+			if err != nil {
+				println("Track ended with error: ", err.Error())
+			}
+		})
 	}
 
 	return mediaStream

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"time"
 
 	"github.com/kw-m/webrtc-relay/pkg/proto"
 	"google.golang.org/grpc"
@@ -21,6 +22,7 @@ type RelayGRPCServer struct {
 func (r *RelayGRPCServer) GetEventStream(req *proto.EventStreamRequest, stream proto.WebRTCRelay_GetEventStreamServer) error {
 	eventStream := r.relay.GetEventStream()
 	defer r.relay.CloseEventStream(&eventStream)
+	ticker := time.NewTicker(5 * time.Second)
 	for {
 		select {
 		case event := <-eventStream:
@@ -33,6 +35,8 @@ func (r *RelayGRPCServer) GetEventStream(req *proto.EventStreamRequest, stream p
 			return status.Errorf(codes.OK, "done")
 		case <-r.relay.stopRelaySignal.GetSignal():
 			return status.Errorf(codes.OK, "relayExit")
+		case <-ticker.C:
+			log.Println("GetEventStream() ticker")
 		}
 	}
 }
@@ -72,8 +76,8 @@ func (r *RelayGRPCServer) SendMsgStream(msgStream proto.WebRTCRelay_SendMsgStrea
 		if err == io.EOF {
 			return status.Errorf(codes.OK, "done")
 		} else if err != nil {
-			log.Printf("Failed to receive message from client: %v", err)
-			return status.Errorf(codes.Internal, fmt.Sprintf("Failed to receive message from client: %v", err))
+			log.Printf("Failed to retrieve message from backend: %v", err)
+			return status.Errorf(codes.Internal, fmt.Sprintf("Failed to retrieve message from backend: %v", err))
 		}
 		r.relay.SendMsg(msg.GetTargetPeerIds(), msg.GetPayload(), msg.GetRelayPeerNumber(), msg.GetExchangeId())
 	}

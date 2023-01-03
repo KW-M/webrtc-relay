@@ -131,7 +131,11 @@ func (conn *WebrtcConnectionCtrl) setupRelayPeer(peerOptions *peerjs.Options, re
 	}()
 
 	// start the peer connection
-	for err := relayPeer.Start(conn.onConnection, conn.onCall, conn.onRelayError); err != nil; {
+	for {
+		err := relayPeer.Start(conn.onConnection, conn.onCall, conn.onRelayError)
+		if err == nil {
+			break
+		}
 		conn.log.Warnf("Failed to start RelayPeer %d, retrying in %d seconds... %s", relayPeerNumber, relayPeer.expBackoffErrorCount, err.Error())
 		time.Sleep(time.Second * time.Duration(relayPeer.expBackoffErrorCount))
 	}

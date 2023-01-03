@@ -62,7 +62,7 @@ type RelayPeer struct {
 	onCall func(*peerjs.MediaConnection, uint32)
 	// onError: The callback to call when an error occurs
 	onError func(peerjs.PeerError, uint32)
-	// expBackoffErrorCount: The number of consecutive failed attempts to connect to the peer server. Used to determine the exponential backoff timeout.
+	// expBackoffErrorCount: The number of consecutive errors that have occurred when trying to connect to the peer server or when the connection fails
 	expBackoffErrorCount uint
 	// savedExchangeId: The exchangeId sent with the last action associated with this relay peer, used to help the webrtc-relay user correlate errors or events with the action that caused them
 	savedExchangeId uint32
@@ -94,7 +94,12 @@ func (p *RelayPeer) Start(onConnection func(*peerjs.DataConnection, uint32), onC
 	p.onConnection = onConnection
 	p.onCall = onCall
 	p.onError = onError
-	return p.createPeer()
+	err := p.createPeer()
+	if err != nil {
+		p.IncrementErrorCount()
+		return err
+	}
+	return nil
 }
 
 func (p *RelayPeer) GetPeerId() string {
@@ -137,9 +142,7 @@ func (p *RelayPeer) GetMediaConnection(peerId string) *peerjs.MediaConnection {
 
 func (p *RelayPeer) CallPeer(peerId string, track webrtc.TrackLocal, opts *peerjs.ConnectionOptions, exchangeId uint32) (*peerjs.MediaConnection, error) {
 	if mc, ok := p.openMediaConnections[peerId]; ok && mc.conn.Open {
-		// return mc.conn, nil
-		mc.conn.Close()
-		println("!!!!!!!!!!!!  closed existing media connection")
+		return mc.conn, nil
 	}
 	mc, err := p.peer.Call(peerId, track, opts)
 	if err != nil {
@@ -151,8 +154,7 @@ func (p *RelayPeer) CallPeer(peerId string, track webrtc.TrackLocal, opts *peerj
 
 func (p *RelayPeer) ConnectToPeer(peerId string, opts *peerjs.ConnectionOptions, exchangeId uint32) (*peerjs.DataConnection, error) {
 	if dc, ok := p.openDataConnections[peerId]; ok && dc.conn.Open {
-		// return dc.conn, nil
-		dc.conn.Close()
+		return dc.conn, nil
 	}
 	dc, err := p.peer.Connect(peerId, opts)
 	if err != nil {
@@ -192,7 +194,6 @@ func (rp *RelayPeer) createPeer() error {
 	rp.peerConfig.Token = rp.connCtrl.tokenStore.GetToken(rp.peerId + "|" + rp.peerConfig.Host)
 	rp.peer, err = peerjs.NewPeer(rp.peerId, rp.peerConfig)
 	if err != nil {
-		rp.expBackoffErrorCount += 1
 		return err
 	}
 
@@ -232,10 +233,8 @@ func (rp *RelayPeer) createPeer() error {
 			rp.peerId = newId
 			rp.recreatePeer()
 		} else if rp.peer.GetDestroyed() {
-			rp.expBackoffErrorCount += 1
 			rp.recreatePeer()
 		} else if rp.peer.GetDisconnected() {
-			rp.expBackoffErrorCount += 1
 			rp.onDisconnected()
 		}
 	})
@@ -272,7 +271,6 @@ func (p *RelayPeer) addDataConnection(dataConn *peerjs.DataConnection, exchangeI
 func (p *RelayPeer) onConnecting() {
 	p.currentState <- RELAY_PEER_CONNECTING
 	p.connectionTimeout = time.AfterFunc(time.Duration(8+p.expBackoffErrorCount)*time.Second, func() {
-		p.expBackoffErrorCount += 1
 		p.recreatePeer()
 	})
 }
@@ -290,7 +288,6 @@ func (p *RelayPeer) onDisconnected() {
 	p.currentState <- RELAY_PEER_DISCONNECTED
 	err := p.peer.Reconnect()
 	if err != nil {
-		p.expBackoffErrorCount += 1
 		log.Error("ERROR RECONNECTING TO DISCONNECTED PEER SERVER: ", err.Error())
 		p.recreatePeer()
 	} else {
@@ -309,8 +306,21 @@ func (p *RelayPeer) onDestroyed() {
 func (p *RelayPeer) recreatePeer() {
 	p.log.Debug("Recreating peer")
 	p.onDestroyed()
-	if err := p.createPeer(); err != nil {
+	var err error
+	for {
+		p.IncrementErrorCount()
+		if err = p.createPeer(); err == nil {
+			break
+		}
 		p.log.Error("Error (re)creating peer: ", err.Error())
+	}
+}
+
+func (p *RelayPeer) IncrementErrorCount() {
+	p.expBackoffErrorCount += 1
+	if p.expBackoffErrorCount > 6 {
+		// p.expBackoffErrorCount = 6
+		panic("Too many relay errors, exiting")
 	}
 }
 

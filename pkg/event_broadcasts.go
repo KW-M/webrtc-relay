@@ -156,8 +156,8 @@ func (conn *WebrtcConnectionCtrl) sendPeerMediaConnErrorEvent(relayPeerNumber ui
 	exchangeId := conn.getMediaConnectionExchangeId(relayPeerNumber, srcPeerId)
 	conn.eventStream.Push(&proto.RelayEventStream{
 		ExchangeId: &exchangeId,
-		Event: &proto.RelayEventStream_PeerDataConnError{
-			PeerDataConnError: &proto.PeerDataConnErrorEvent{
+		Event: &proto.RelayEventStream_PeerMediaConnError{
+			PeerMediaConnError: &proto.PeerMediaConnErrorEvent{
 				RelayPeerNumber: relayPeerNumber,
 				SrcPeerId:       srcPeerId,
 				Type:            errType,
