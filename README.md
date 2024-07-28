@@ -2,9 +2,20 @@
   <img src="Docs/Images/Webrtc-Relay Logo.svg" alt="logo" width="200"/>
   <h1 align="center">WebRTC Relay</h1>
 </p>
-Relay low latency audio/video and data between any web browser and remote devices over WebRTC. This tool is programing language independent (using gRPC) and should compile on any os where golang is supported
+Relay low latency audio/video and data between any web browser and remote devices over WebRTC. This tool is programing language independent (using gRPC) and should compile on any os where golang is supported.
 
-⚠️ WebRTC Relay is under development. The ***API has not yet stabilized***. A feature complete beta should be ready by the begining of 2023
+</br>
+</br>
+
+> ⚠️ WebRTC Relay development has halted - feel free to use it (and submit bugfixes!) but keep in mind I don't plan on adding features or changes for the forseable future.
+<details>
+  <summary> Why? </summary>
+  At the time I created this library, the Pion WebRTC framework didn't have the webRTC feedback mechanisms to make really smooth video playback possible in tricky bandwidth situations, and I didn't have the requisite knowledge to implement them.  I eventually shifted my own projects to the Chromium WebRTC stack and moved awat from this library. That said WebRTC Relay still works great for simpler cases and may work even better with future pion versons, so please fork it if it's relavant to you!
+</details>
+
+  
+
+
 
 ## Inspiration
 
